@@ -1,26 +1,180 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Design tokens — palette "sunset & spark"
+   Orange = action (voter, publier), violet = tout ce qui vient de l'IA.
+   Les tokens sont sémantiques (canvas, surface, ink…) : le mode sombre ne
+   fait que les redéfinir, les composants n'ont pas de classes dark:.
+   ------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  color-scheme: light dark;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --canvas: #faf7f2;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --ink: #17141f;
+  --ink-2: #5b5468;
+  --ink-3: #8f889b;
+  --line: #e9e2d8;
+  --line-2: #d6ccbe;
+
+  --brand: #ff5c1a;
+  --brand-2: #ff8a3d;
+  --brand-ink: #ffffff;
+  --brand-soft: #fff0e6;
+
+  --ai: #6d3df5;
+  --ai-2: #b06bff;
+  --ai-soft: #f1ebff;
+
+  --ok: #17915a;
+  --ok-soft: #e2f6ea;
+  --warn: #c67c00;
+  --warn-soft: #fff3d6;
+  --bad: #d93838;
+  --bad-soft: #ffe8e8;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --canvas: #0f0d14;
+    --surface: #17141f;
+    --surface-2: #211d2b;
+    --ink: #f3efe9;
+    --ink-2: #b3abbf;
+    --ink-3: #7f778c;
+    --line: #2a2535;
+    --line-2: #3b3449;
+
+    --brand: #ff6a2a;
+    --brand-2: #ff9550;
+    --brand-soft: #2d1a11;
+
+    --ai: #a184ff;
+    --ai-2: #c9a6ff;
+    --ai-soft: #241c3a;
+
+    --ok: #3ccf7e;
+    --ok-soft: #10301f;
+    --warn: #f2b23d;
+    --warn-soft: #33260c;
+    --bad: #ff6b6b;
+    --bad-soft: #3a1717;
   }
 }
 
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-ai: var(--ai);
+  --color-ai-2: var(--ai-2);
+  --color-ai-soft: var(--ai-soft);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-jakarta), ui-sans-serif, sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(23 20 31 / 0.04), 0 10px 30px -18px rgb(23 20 31 / 0.25);
+  --shadow-lift: 0 2px 4px rgb(23 20 31 / 0.05), 0 18px 40px -20px rgb(23 20 31 / 0.35);
+  --shadow-brand: 0 8px 20px -10px var(--brand);
+
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-pop: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0.85);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
+/* --- Base ---------------------------------------------------------------- */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+
+/* --- Petits composants réutilisables (Tailwind v4 @utility) -------------- */
+@utility card {
+  @apply rounded-2xl border border-line bg-surface shadow-card;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60;
+}
+
+@utility btn-primary {
+  @apply bg-brand text-brand-ink shadow-brand hover:bg-brand-2;
+}
+
+@utility btn-ghost {
+  @apply bg-surface-2 text-ink hover:bg-line;
+}
+
+@utility btn-outline {
+  @apply border border-line-2 bg-surface text-ink hover:border-ink-3;
+}
+
+@utility input {
+  @apply w-full rounded-xl border border-line-2 bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-3 focus:border-brand focus:ring-4 focus:ring-brand/15 focus:outline-none;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:border-ink-3 hover:text-ink;
+}
+
+@utility chip-active {
+  @apply border-ink bg-ink text-canvas hover:border-ink hover:text-canvas;
+}
+
+@utility skeleton {
+  @apply animate-shimmer rounded-lg bg-[linear-gradient(90deg,var(--surface-2)_25%,var(--line)_50%,var(--surface-2)_75%)] bg-[length:200%_100%];
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

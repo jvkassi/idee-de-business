@@ -1,59 +1,45 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { addCommentAction, type FormState } from "@/app/actions";
+import Avatar from "@/components/Avatar";
 
-export default function CommentForm({
-  ideaId,
-  loggedIn,
-}: {
-  ideaId: number;
-  loggedIn: boolean;
-}) {
-  const [state, formAction, pending] = useActionState<FormState, FormData>(
-    addCommentAction,
-    undefined,
-  );
+export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo: string }) {
+  const [state, formAction, pending] = useActionState<FormState, FormData>(addCommentAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (!pending && !state?.error) {
-      formRef.current?.reset();
-    }
+    // Après un envoi réussi (state = {}), on vide le champ.
+    if (!pending && state && !state.error) formRef.current?.reset();
   }, [pending, state]);
 
-  if (!loggedIn) {
-    return (
-      <p className="text-sm text-neutral-500">
-        <Link href="/login" className="underline">
-          Connecte-toi
-        </Link>{" "}
-        pour laisser un commentaire.
-      </p>
-    );
-  }
-
   return (
-    <form ref={formRef} action={formAction} className="space-y-2">
-      <input type="hidden" name="ideaId" value={ideaId} />
-      <textarea
-        name="body"
-        required
-        minLength={2}
-        maxLength={1000}
-        rows={3}
-        placeholder="Ton avis sur cette idée…"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-      />
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-neutral-900 text-white px-4 py-1.5 text-sm hover:bg-neutral-700 disabled:opacity-60"
-      >
-        {pending ? "Envoi…" : "Commenter"}
-      </button>
+    <form ref={formRef} action={formAction} className="card flex gap-3 p-4">
+      <Avatar pseudo={pseudo} />
+      <div className="min-w-0 flex-1 space-y-2">
+        <input type="hidden" name="ideaId" value={ideaId} />
+        <label htmlFor="comment-body" className="sr-only">
+          Ton commentaire
+        </label>
+        <textarea
+          id="comment-body"
+          name="body"
+          required
+          minLength={2}
+          maxLength={1000}
+          rows={3}
+          placeholder="Ton avis, une question, une piste pour aller plus loin…"
+          className="input resize-y"
+        />
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-bad" role="alert">
+            {state?.error}
+          </p>
+          <button type="submit" disabled={pending} className="btn btn-primary px-4 py-2">
+            {pending ? "Envoi…" : "Publier"}
+          </button>
+        </div>
+      </div>
     </form>
   );
 }

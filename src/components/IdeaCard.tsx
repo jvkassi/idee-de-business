@@ -1,24 +1,28 @@
 import Link from "next/link";
 import type { IdeaListItem } from "@/lib/ideas";
+import { formatDateTime, timeAgo } from "@/lib/format";
 import AiBadge from "@/components/AiBadge";
+import VoteButton from "@/components/VoteButton";
+import CoverImage from "@/components/CoverImage";
 
-export default function IdeaCard({ idea }: { idea: IdeaListItem }) {
+export default function IdeaCard({ idea, loggedIn }: { idea: IdeaListItem; loggedIn: boolean }) {
+  const href = `/ideas/${idea.id}`;
   return (
-    <Link
-      href={`/ideas/${idea.id}`}
-      className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-4 hover:border-neutral-400 transition-colors"
-    >
-      <div className="hidden sm:block shrink-0 w-28 h-20 rounded-md overflow-hidden bg-neutral-100">
+    <article className="card group relative flex gap-3 p-3 transition-[box-shadow,transform,border-color] duration-200 has-[a:focus-visible]:border-brand hover:-translate-y-0.5 hover:border-line-2 hover:shadow-lift sm:gap-4 sm:p-4">
+      {/* Vignette : illustration IA, ou emoji de la catégorie en attendant */}
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-surface-2 sm:h-24 sm:w-36">
         {idea.coverImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <CoverImage
             src={idea.coverImage}
-            alt=""
-            className="w-full h-full object-cover"
+            title={idea.title}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl">
-            {idea.categoryEmoji}
+          <div className="grid h-full w-full place-items-center text-3xl">
+            {idea.coverStatus === "pending" ? (
+              <span className="skeleton absolute inset-0" aria-label="Illustration en cours" />
+            ) : null}
+            <span className="relative">{idea.categoryEmoji}</span>
           </div>
         )}
       </div>
@@ -26,28 +30,41 @@ export default function IdeaCard({ idea }: { idea: IdeaListItem }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-neutral-500 mb-1">
-              <span>
+            <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-3">
+              <span className="font-medium text-ink-2">
                 {idea.categoryEmoji} {idea.categoryName}
               </span>
-              <span>·</span>
+              <span aria-hidden>·</span>
               <span>@{idea.authorPseudo}</span>
+              <span aria-hidden>·</span>
+              <time dateTime={idea.createdAt} title={formatDateTime(idea.createdAt)}>
+                {timeAgo(idea.createdAt)}
+              </time>
             </div>
-            <h3 className="font-medium text-neutral-900 truncate">{idea.title}</h3>
-            <p className="text-sm text-neutral-600 mt-1 line-clamp-2">
-              {idea.aiSummary || idea.pitch}
-            </p>
+            <h3 className="font-display text-base font-bold leading-snug tracking-tight sm:text-lg">
+              {/* Lien "étiré" : toute la carte est cliquable, le vote reste au-dessus */}
+              <Link href={href} className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none">
+                {idea.title}
+              </Link>
+            </h3>
+            <p className="mt-1 line-clamp-2 text-sm text-ink-2">{idea.aiSummary || idea.pitch}</p>
           </div>
-          <div className="flex flex-col items-center shrink-0 rounded-md bg-neutral-100 px-3 py-2 text-center">
-            <span className="text-sm font-semibold">▲ {idea.votes}</span>
-            <span className="text-[11px] text-neutral-500">votes</span>
+
+          <div className="relative z-10 shrink-0">
+            <VoteButton ideaId={idea.id} votes={idea.votes} voted={idea.voted} loggedIn={loggedIn} size="sm" />
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-3 text-xs text-neutral-500">
+
+        <div className="mt-3 flex items-center gap-3 text-xs text-ink-3">
           <AiBadge status={idea.aiStatus} score={idea.aiScore} />
-          <span>💬 {idea.commentCount}</span>
+          <span className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5v-6Z" strokeLinejoin="round" />
+            </svg>
+            {idea.commentCount}
+          </span>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

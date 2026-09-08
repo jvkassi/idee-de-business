@@ -10,6 +10,7 @@ import {
   validatePseudo,
 } from "@/lib/session";
 import { addComment, createIdea, retryAiImprovement, retryCoverGeneration, toggleVote } from "@/lib/ideas";
+import { loginHref, safeNext } from "@/lib/format";
 
 export type FormState = { error?: string } | undefined;
 
@@ -19,7 +20,7 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   if (err) return { error: err };
   const user = await loginOrCreate(pseudo);
   await setSessionCookie(user);
-  redirect("/");
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function logoutAction(): Promise<void> {
@@ -47,7 +48,8 @@ export async function createIdeaAction(_prev: FormState, formData: FormData): Pr
 
   const id = await createIdea({ title, pitch, categorySlug, authorId: user.id });
   revalidatePath("/");
-  redirect(`/ideas/${id}`);
+  // ?new=1 : la page de l'idée affiche la bannière "publiée, l'IA travaille".
+  redirect(`/ideas/${id}?new=1`);
 }
 
 export async function addCommentAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -63,12 +65,13 @@ export async function addCommentAction(_prev: FormState, formData: FormData): Pr
 
   await addComment(ideaId, user.id, body);
   revalidatePath(`/ideas/${ideaId}`);
+  revalidatePath("/");
   return {};
 }
 
 export async function voteAction(ideaId: number): Promise<void> {
   const user = await getSession();
-  if (!user) redirect("/login");
+  if (!user) redirect(loginHref(`/ideas/${ideaId}`));
   await toggleVote(ideaId, user.id);
   revalidatePath(`/ideas/${ideaId}`);
   revalidatePath("/");
