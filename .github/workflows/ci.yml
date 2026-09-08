@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run build
+        env:
+          # Aucune base de données n'est requise au build : toutes les pages
+          # sont en rendu dynamique (force-dynamic), les requêtes SQL ne
+          # s'exécutent qu'à la requête, jamais pendant `next build`.
+          GEMINI_API_KEY: dummy-build-time-key
+          SESSION_SECRET: dummy-build-time-secret

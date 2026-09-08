@@ -57,6 +57,24 @@ Sur Vercel, si `TURSO_DATABASE_URL` n'est pas défini, l'app refuse de
 démarrer une requête base de données plutôt que d'écrire silencieusement
 dans un système de fichiers éphémère qui perdrait les données.
 
+## CI/CD (GitHub Actions)
+
+- `.github/workflows/ci.yml` : lint + build sur chaque push et chaque PR
+  vers `main`.
+- `.github/workflows/deploy.yml` : déploie automatiquement en production sur
+  Vercel à chaque push sur `main`.
+
+Secrets à ajouter sur le dépôt GitHub (Settings → Secrets and variables →
+Actions) pour que le déploiement fonctionne :
+- `VERCEL_TOKEN` — jeton personnel Vercel (vercel.com/account/tokens).
+- `VERCEL_ORG_ID` — `team_OK32u0Kw0W0VTHna9v2r5LnQ`
+- `VERCEL_PROJECT_ID` — `prj_uxeTOoU1sOUKGcgR7gHRi1xYus9n`
+
+(Les variables d'environnement de l'app elle-même — `GEMINI_API_KEY`,
+`IDEAS_TEXT_MODEL`, `IDEAS_IMAGE_MODEL`, `SESSION_SECRET` — sont déjà
+configurées directement sur le projet Vercel, pas besoin de les dupliquer
+en secrets GitHub.)
+
 ## Limites connues du MVP (à faire évoluer si ça prend)
 
 - Les illustrations générées sont stockées en base (data URL base64,
