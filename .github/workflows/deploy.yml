@@ -24,7 +24,7 @@ jobs:
       # chargement, comme les clés VAPID). Un build distant s'exécute sur
       # l'infra Vercel elle-même, qui a un accès normal aux vraies valeurs.
       - name: Déployer sur Vercel (build distant)
-        run: vercel deploy --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        run: vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
