@@ -45,15 +45,16 @@ const GROUPS: Group[] = [
         ),
       },
       {
-        q: "Est-ce que je peux forker l'idée de quelqu'un d'autre ?",
+        q: "Est-ce que je peux reprendre l'idée de quelqu'un d'autre à ma façon ?",
         plain:
-          "Oui. Comme sur GitHub, le fork crée une copie indépendante sous ton pseudo, avec un lien visible vers l'originale et son auteur. Tu peux la préciser, la réorienter, la pousser plus loin. L'originale n'est pas modifiée.",
+          "Oui, bouton « Faire ma version » sur la fiche. Tu expliques à voix haute comment TOI tu ferais — pas une copie silencieuse de l'originale. Ça crée une idée indépendante sous ton pseudo, avec un lien visible vers l'idée d'origine et son auteur. L'originale n'est pas modifiée.",
         a: (
           <p>
-            Oui. Comme sur GitHub, le fork crée une copie indépendante sous ton pseudo, avec un lien visible vers
-            l&apos;idée d&apos;origine et son auteur. Tu peux la préciser, la réorienter, la pousser plus loin ;
-            l&apos;originale n&apos;est pas modifiée. La fiche, la note et l&apos;illustration sont régénérées pour
-            ta version.
+            Oui : le bouton <strong className="font-semibold text-ink">« Faire ma version »</strong> te demande une
+            courte note vocale expliquant comment TOI tu t&apos;y prendrais. Ça crée une idée indépendante sous ton
+            pseudo, avec un lien visible vers l&apos;idée d&apos;origine et son auteur — qui, lui, n&apos;est pas
+            modifié. La fiche, la note et l&apos;illustration sont générées à partir de{" "}
+            <strong className="font-semibold text-ink">ta</strong> version.
           </p>
         ),
       },
@@ -72,12 +73,14 @@ const GROUPS: Group[] = [
       {
         q: "Puis-je supprimer ou modifier mon idée après publication ?",
         plain:
-          "Pour l'instant, tu peux la préciser (une note vocale complémentaire fusionne avec ta description et relance l'analyse), mais pas la supprimer toi-même. Réfléchis avant de publier : c'est public et daté.",
+          "Tu peux la préciser (une note vocale complémentaire fusionne avec ta description et relance l'analyse) ou la supprimer définitivement toi-même (bouton sur la fiche de l'idée). La suppression retire aussi les réactions et votes ; les versions reprises par d'autres restent, comme des idées indépendantes.",
         a: (
           <p>
             Tu peux la <strong className="font-semibold text-ink">préciser</strong> : une note vocale complémentaire
-            fusionne avec ta description et relance l&apos;analyse. En revanche, il n&apos;y a pas encore de bouton
-            « supprimer ». Réfléchis avant de publier : c&apos;est public et daté.
+            fusionne avec ta description et relance l&apos;analyse. Tu peux aussi la{" "}
+            <strong className="font-semibold text-ink">supprimer</strong> définitivement (bouton sur la fiche, réservé à
+            l&apos;auteur) — réactions et votes disparaissent avec elle ; les versions reprises par d&apos;autres
+            restent, comme des idées indépendantes.
           </p>
         ),
       },
@@ -192,11 +195,11 @@ const GROUPS: Group[] = [
       {
         q: "C'est gratuit ?",
         plain:
-          "Oui, entièrement : publier, voter, commenter, forker et générer le dossier de démarrage. Pas d'abonnement, pas de version premium, pas de carte bancaire.",
+          "Oui, entièrement : publier, voter, commenter, faire sa propre version d'une idée et générer le dossier de démarrage. Pas d'abonnement, pas de version premium, pas de carte bancaire.",
         a: (
           <p>
-            Oui, entièrement : publier, voter, commenter, forker et générer le dossier de démarrage. Pas
-            d&apos;abonnement, pas de version premium, pas de carte bancaire.
+            Oui, entièrement : publier, voter, commenter, faire sa propre version d&apos;une idée et générer le
+            dossier de démarrage. Pas d&apos;abonnement, pas de version premium, pas de carte bancaire.
           </p>
         ),
       },

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Toutes les idées",
   description:
-    "Le fil des idées de business publiées par la communauté : notées par l'IA, soutenues par les votes, prêtes à être discutées ou forkées.",
+    "Le fil des idées de business publiées par la communauté : notées par l'IA, soutenues par les votes, prêtes à être discutées ou reprises à sa façon.",
 };
 
 type SearchParams = { cat?: string; q?: string; sort?: string };
@@ -68,7 +68,7 @@ export default async function IdeasFeedPage({ searchParams }: { searchParams: Pr
             </h1>
             {!user && !filtered && (
               <p className="mt-1.5 max-w-xl text-sm text-ink-2">
-                Tout est public : lis, vote, réagis, forke.{" "}
+                Tout est public : lis, vote, réagis, propose ta version.{" "}
                 <Link href="/" className="font-medium text-ink underline-offset-4 hover:underline">
                   Comment ça marche ?
                 </Link>

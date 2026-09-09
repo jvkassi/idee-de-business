@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { put } from "@vercel/blob";
+import { put, del } from "@vercel/blob";
 import { query, ready } from "./db";
 import { KIT_SCORE_THRESHOLD } from "./constants";
 import { notifyUser } from "./push";
@@ -367,37 +367,78 @@ export async function createIdea(opts: {
 }
 
 /**
- * Fork : copie une idée existante sous un nouvel auteur, qui reprend la main
- * dessus (peut la préciser, la faire évoluer) sans toucher à l'originale.
- * Repart de zéro sur l'analyse IA et l'illustration — c'est une entité
- * indépendante à partir de là, comme un fork de dépôt.
+ * Reprendre une idée : crée une nouvelle idée indépendante sous un nouvel
+ * auteur, à partir de SA propre vision (sa note vocale), pas d'une copie
+ * silencieuse de l'originale — sans quoi la fiche n'apporterait rien de
+ * neuf à analyser. Repart de zéro sur l'analyse IA et l'illustration,
+ * comme un fork de dépôt, mais avec un texte qui vient vraiment de la
+ * personne qui reprend la main.
  */
-export async function forkIdea(originalId: number, forkerId: number): Promise<number> {
+export async function forkIdea(originalId: number, forkerId: number, myPitch: string, audioUrl: string): Promise<number> {
   await ready();
-  const rows = await query<{ title: string; pitch: string; category_slug: string; author_id: number }>(
-    `SELECT i.title, i.pitch, c.slug AS category_slug, i.author_id
+  const rows = await query<{ title: string; category_slug: string; author_id: number }>(
+    `SELECT i.title, c.slug AS category_slug, i.author_id
      FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = $1`,
     [originalId],
   );
   if (rows.length === 0) throw new Error("Idée introuvable");
-  const { title, pitch, category_slug, author_id } = rows[0];
+  const { title, category_slug, author_id } = rows[0];
   const newId = await createIdea({
     title: String(title),
-    pitch: String(pitch),
+    pitch: myPitch,
     categorySlug: String(category_slug),
     authorId: forkerId,
+    audioUrl,
     parentIdeaId: originalId,
   });
   if (Number(author_id) !== forkerId) {
     after(() =>
       notifyUser(Number(author_id), {
-        title: "Ton idée a été forkée",
-        body: `Quelqu'un a repris « ${title} » pour la faire évoluer de son côté.`,
+        title: "Quelqu'un a repris ton idée",
+        body: `Quelqu'un a fait sa propre version de « ${title} ».`,
         url: `/ideas/${newId}`,
       }),
     );
   }
   return newId;
+}
+
+/**
+ * Suppression définitive, réservée à l'auteur (vérifié ici en base, pas
+ * seulement côté Server Action). Les forks ne sont pas supprimés — ils
+ * deviennent des idées indépendantes (parent_idea_id repassé à NULL) —
+ * seuls les commentaires et votes de CETTE idée disparaissent (cascade SQL).
+ */
+export async function deleteIdea(id: number, requesterId: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  await ready();
+  const rows = await query<{ author_id: number; audio_url: string | null; cover_image: string | null; kit_flyer_image: string | null }>(
+    "SELECT author_id, audio_url, cover_image, kit_flyer_image FROM ideas WHERE id = $1",
+    [id],
+  );
+  if (rows.length === 0) return { ok: false, error: "Idée introuvable." };
+  const idea = rows[0];
+  if (Number(idea.author_id) !== requesterId) {
+    return { ok: false, error: "Seul l'auteur de l'idée peut la supprimer." };
+  }
+
+  const commentAudio = await query<{ audio_url: string }>(
+    "SELECT audio_url FROM comments WHERE idea_id = $1 AND audio_url IS NOT NULL",
+    [id],
+  );
+  const blobUrls = [idea.audio_url, idea.cover_image, idea.kit_flyer_image, ...commentAudio.map((c) => c.audio_url)].filter(
+    (u): u is string => Boolean(u),
+  );
+
+  await query("UPDATE ideas SET parent_idea_id = NULL WHERE parent_idea_id = $1", [id]);
+  await query("DELETE FROM ideas WHERE id = $1", [id]);
+
+  if (blobUrls.length > 0) {
+    // Best effort : la suppression de la fiche ne doit pas échouer si le
+    // nettoyage des fichiers Blob rencontre un souci.
+    del(blobUrls).catch((err) => console.error("[deleteIdea] nettoyage Blob échoué", id, err));
+  }
+
+  return { ok: true };
 }
 
 async function runAiImprovement(id: number, title: string, pitch: string, authorId: number) {
@@ -417,6 +458,7 @@ async function runAiImprovement(id: number, title: string, pitch: string, author
       );
     }
   } catch (err) {
+    console.error("[gemini:analysis]", "idea", id, err);
     await query("UPDATE ideas SET ai_status = 'failed', ai_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       id,
@@ -437,6 +479,7 @@ async function runCoverGeneration(id: number, title: string, pitch: string, cate
       [blob.url, id],
     );
   } catch (err) {
+    console.error("[gemini:cover]", "idea", id, err);
     await query("UPDATE ideas SET cover_status = 'failed', cover_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       id,
@@ -540,6 +583,7 @@ async function runStarterKit(
       }),
     );
   } catch (err) {
+    console.error("[gemini:kit]", "idea", id, err);
     await query("UPDATE ideas SET kit_status = 'failed', kit_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       id,

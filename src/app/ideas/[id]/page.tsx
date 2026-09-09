@@ -16,6 +16,7 @@ import RetryButton from "@/components/RetryButton";
 import ShareButton from "@/components/ShareButton";
 import ForkButton from "@/components/ForkButton";
 import ValidationGate from "@/components/ValidationGate";
+import DeleteIdeaButton from "@/components/DeleteIdeaButton";
 import CommentForm from "./CommentForm";
 
 export const dynamic = "force-dynamic";
@@ -113,13 +114,18 @@ export default async function IdeaPage({
           <time dateTime={idea.createdAt} title={formatDateTime(idea.createdAt)}>
             {timeAgo(idea.createdAt)}
           </time>
+          {isOwner && (
+            <span className="ml-auto">
+              <DeleteIdeaButton ideaId={idea.id} title={idea.title} />
+            </span>
+          )}
         </div>
 
         <h1 className="font-display text-3xl font-bold leading-[1.08] tracking-tight sm:text-[2.75rem]">{idea.title}</h1>
 
         {idea.parentIdea && (
           <p className="text-xs text-ink-3">
-            Forké depuis{" "}
+            Inspirée de{" "}
             <Link href={`/ideas/${idea.parentIdea.id}`} className="font-medium text-ink underline-offset-4 hover:underline">
               {idea.parentIdea.title}
             </Link>{" "}
@@ -173,8 +179,8 @@ export default async function IdeaPage({
         )}
       </section>
 
-      {/* Les deux verdicts, côte à côte */}
-      <div className="flex flex-wrap items-center gap-2 border-y border-line py-3">
+      {/* Les deux verdicts, côte à côte — épinglés pour rester à portée pendant la lecture/les réactions */}
+      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 border-y border-line bg-paper py-3 sm:top-16">
         <VoteButton ideaId={idea.id} votes={idea.votes} voted={idea.voted} loggedIn={!!user} />
         <span className="inline-flex h-10 items-center rounded-xl border border-line px-3">
           <AiBadge status={idea.aiStatus} score={idea.aiScore} />

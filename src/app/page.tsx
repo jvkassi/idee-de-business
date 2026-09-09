@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: { absolute: "Idées de Business — le GitHub des idées de business, en Côte d'Ivoire" },
   description:
-    "Raconte ton idée à voix haute en 30 secondes. L'IA la structure et la note sur 100, la communauté vote et forke, et au-dessus de 70/100 tu débloques ton dossier de démarrage : landing page, architecture, flyer. Gratuit.",
+    "Raconte ton idée à voix haute en 30 secondes. L'IA la structure et la note sur 100, la communauté vote et réagit, et au-dessus de 70/100 tu débloques ton dossier de démarrage : landing page, architecture, flyer. Gratuit.",
 };
 
 /* ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ const STEPS: { who: Who; title: string; text: string; time: string }[] = [
   {
     who: "eux",
     title: "La communauté tranche",
-    text: "Votes, réactions, forks. Tout est public : c'est là qu'une idée se confronte au réel — et que tu croises peut-être ton futur associé.",
+    text: "Votes, réactions, versions reprises. Tout est public : c'est là qu'une idée se confronte au réel — et que tu croises peut-être ton futur associé.",
     time: "en continu",
   },
   {
@@ -80,8 +80,8 @@ const WHY_PUBLIC: { title: string; text: string }[] = [
     text: "Ce qui compte, c'est l'exécution — et l'exécution commence par en parler. Publier, c'est prendre date, récolter des avis vrais et trouver des alliés.",
   },
   {
-    title: "Fork, comme sur GitHub.",
-    text: "N'importe qui peut reprendre une idée pour la faire évoluer de son côté. L'originale reste signée de son auteur, le fork affiche d'où il vient.",
+    title: "Faire sa propre version.",
+    text: "N'importe qui peut reprendre une idée à sa façon, à voix haute : l'IA note la nouvelle version, l'originale reste inchangée et signée de son auteur.",
   },
   {
     title: "Une note honnête.",
@@ -154,7 +154,7 @@ async function LiveStats() {
   const tiles: { value: number; label: string; human?: boolean }[] = [
     { value: s.ideas, label: s.ideas > 1 ? "idées publiées" : "idée publiée" },
     { value: s.votes, label: s.votes > 1 ? "votes de soutien" : "vote de soutien", human: true },
-    { value: s.comments + s.forks, label: "réactions & forks", human: true },
+    { value: s.comments + s.forks, label: "réactions & versions", human: true },
     { value: s.validated, label: `au-dessus de ${KIT_SCORE_THRESHOLD}/100` },
   ];
   return (
@@ -321,7 +321,7 @@ export default async function LandingPage() {
           <SectionHeading
             label="Déjà dans le fil"
             title={<span id="proof-title">Des idées vraies, notées et soutenues.</span>}
-            lede="Pas des exemples inventés : les idées ci-dessous sont celles que la communauté pousse en ce moment. Lis, vote, forke."
+            lede="Pas des exemples inventés : les idées ci-dessous sont celles que la communauté pousse en ce moment. Lis, vote, propose ta version."
           />
           <Link href="/ideas" className="btn btn-ink shrink-0">
             Voir toutes les idées
@@ -386,7 +386,7 @@ export default async function LandingPage() {
       <section className="border-t border-line py-14 sm:py-20" aria-labelledby="public-title">
         <SectionHeading
           label="Pourquoi tout est public"
-          title={<span id="public-title">Comme un dépôt open source : ouvert, signé, forkable.</span>}
+          title={<span id="public-title">Comme un carnet ouvert : public, signé, réutilisable par tous.</span>}
         />
         <div className="mt-10 grid gap-8 md:grid-cols-3">
           {WHY_PUBLIC.map((w) => (

@@ -1,30 +1,70 @@
 "use client";
 
-import { useTransition } from "react";
-import { forkIdeaAction } from "@/app/actions";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { forkIdeaVoiceAction } from "@/app/actions";
+import VoiceRecorder from "@/components/VoiceRecorder";
+
+const PROMPTS = [
+  "Qu'est-ce que tu changerais dans cette idée ?",
+  "Pour qui tu la ferais, toi, précisément ?",
+  "Comment tu t'y prendrais différemment ?",
+  "C'est quoi ton angle à toi là-dessus ?",
+];
 
 /**
- * Fork : copie l'idée sous ton pseudo pour la faire évoluer de ton côté.
- * Ouvert à tout le monde, y compris l'auteur (il peut forker sa propre
- * idée pour explorer une variante) — comme sur GitHub.
+ * Reprendre une idée demande sa propre voix : pas une copie silencieuse
+ * de l'originale (elle n'apprendrait rien de neuf à l'IA), une vraie
+ * fiche née de ce que TOI tu en ferais.
  */
 export default function ForkButton({ ideaId, forkCount }: { ideaId: number; forkCount: number }) {
-  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRecorded(blob: Blob): Promise<{ ok: boolean; error?: string }> {
+    const formData = new FormData();
+    formData.append("ideaId", String(ideaId));
+    formData.append("audio", blob, `version.${blob.type.includes("mp4") ? "m4a" : "webm"}`);
+    const result = await forkIdeaVoiceAction(formData);
+    if (result.ok) {
+      router.push(`/ideas/${result.newIdeaId}?new=1`);
+      return { ok: true };
+    }
+    setError(result.error);
+    return { ok: false, error: result.error };
+  }
+
+  if (open) {
+    return (
+      <div className="w-full max-w-sm">
+        <VoiceRecorder
+          minSeconds={15}
+          prompts={PROMPTS}
+          idleTitle="Explique ta version, à voix haute"
+          idleHint="Dis comment TU ferais cette idée. Quinze secondes minimum — l'IA note et illustre ta propre fiche."
+          busyLabel="Création de ta version…"
+          onRecorded={handleRecorded}
+          onCancel={() => setOpen(false)}
+          compact
+        />
+        {error && <p className="mt-1 text-xs text-bad">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
-      disabled={pending}
-      onClick={() => startTransition(() => forkIdeaAction(ideaId))}
+      onClick={() => setOpen(true)}
       className="btn btn-outline gap-1.5 px-3 py-2 text-xs"
-      title="Reprendre cette idée pour la faire évoluer de ton côté"
+      title="Enregistre comment tu ferais cette idée à ta façon"
     >
-      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-        <circle cx="4" cy="3.5" r="1.5" />
-        <circle cx="12" cy="3.5" r="1.5" />
-        <circle cx="8" cy="12.5" r="1.5" />
-        <path d="M4 5v1.5A2.5 2.5 0 0 0 6.5 9h3A2.5 2.5 0 0 0 12 6.5V5M8 9v2" strokeLinecap="round" />
+      <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+        <rect x="7.5" y="2.5" width="5" height="8" rx="2.5" />
+        <path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3M7.5 17.5h5" strokeLinecap="round" />
       </svg>
-      {pending ? "Fork…" : "Forker"}
+      Faire ma version
       {forkCount > 0 && <span className="tabular-nums text-ink-3">{forkCount}</span>}
     </button>
   );

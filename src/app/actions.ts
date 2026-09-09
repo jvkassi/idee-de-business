@@ -12,6 +12,7 @@ import {
 import {
   addComment,
   createIdea,
+  deleteIdea,
   forkIdea,
   getCategories,
   getIdea,
@@ -193,16 +194,43 @@ export async function retryKitAction(ideaId: number): Promise<void> {
   revalidatePath(`/ideas/${ideaId}`);
 }
 
-/** Fork : n'importe qui peut reprendre une idée pour la faire évoluer de son côté. */
-export async function forkIdeaAction(ideaId: number): Promise<void> {
+export type ForkResult = { ok: true; newIdeaId: number } | { ok: false; error: string };
+
+/**
+ * Reprendre une idée : n'importe qui peut la reprendre à sa façon, mais
+ * doit expliquer à voix haute comment IL la ferait — pas une copie
+ * silencieuse de l'originale, une vraie nouvelle fiche à analyser.
+ */
+export async function forkIdeaVoiceAction(formData: FormData): Promise<ForkResult> {
   const user = await getSession();
-  if (!user) redirect(loginHref(`/ideas/${ideaId}`));
+  if (!user) return { ok: false, error: "Connecte-toi d'abord." };
+
+  const ideaId = Number(formData.get("ideaId"));
+  const audio = formData.get("audio");
+  if (!ideaId) return { ok: false, error: "Idée invalide." };
+  if (!(audio instanceof File) || audio.size === 0) {
+    return { ok: false, error: "Aucun enregistrement reçu." };
+  }
+  const sizeCheck = checkAudioSize(audio.size);
+  if (!sizeCheck.ok) return { ok: false, error: sizeCheck.error };
   const limit = await checkRateLimit(user.id, "create_idea", 5, 60);
-  if (!limit.ok) redirect(`/ideas/${ideaId}`);
-  const newId = await forkIdea(ideaId, user.id);
-  revalidatePath("/");
-  revalidatePath("/ideas");
-  redirect(`/ideas/${newId}?new=1`);
+  if (!limit.ok) return { ok: false, error: limit.error };
+
+  const buffer = Buffer.from(await audio.arrayBuffer());
+  const mimeType = audio.type || "audio/webm";
+
+  try {
+    const [transcript, audioUrl] = await Promise.all([
+      transcribeShortAudio(buffer.toString("base64"), mimeType),
+      uploadVoiceNote(buffer, mimeType, "voice/forks"),
+    ]);
+    const newIdeaId = await forkIdea(ideaId, user.id, transcript, audioUrl);
+    revalidatePath("/");
+    revalidatePath("/ideas");
+    return { ok: true, newIdeaId };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Échec de la reprise." };
+  }
 }
 
 export async function addCommentAction(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -281,6 +309,17 @@ export async function retryAiAction(ideaId: number): Promise<void> {
 
   await retryAiImprovement(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
+}
+
+export async function deleteIdeaAction(ideaId: number): Promise<RefineResult> {
+  const user = await getSession();
+  if (!user) return { ok: false, error: "Connecte-toi d'abord." };
+
+  const result = await deleteIdea(ideaId, user.id);
+  if (!result.ok) return result;
+  revalidatePath("/");
+  revalidatePath("/ideas");
+  redirect("/ideas");
 }
 
 export async function subscribePushAction(sub: PushSubscriptionInput): Promise<{ ok: boolean }> {
