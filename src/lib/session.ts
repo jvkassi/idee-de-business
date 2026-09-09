@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 import crypto from "node:crypto";
-import { getDb, ready } from "./db";
+import { query, ready } from "./db";
 
 const COOKIE_NAME = "idee_session";
 
@@ -40,21 +40,18 @@ export function validatePseudo(pseudo: string): string | null {
 export async function loginOrCreate(pseudoRaw: string): Promise<SessionUser> {
   await ready();
   const pseudo = pseudoRaw.trim();
-  const db = getDb();
-  const existing = await db.execute({
-    sql: "SELECT id, pseudo FROM users WHERE pseudo = ? COLLATE NOCASE",
-    args: [pseudo],
-  });
-  if (existing.rows.length > 0) {
-    const row = existing.rows[0];
-    return { id: Number(row.id), pseudo: String(row.pseudo) };
+  const existing = await query<{ id: number; pseudo: string }>(
+    "SELECT id, pseudo FROM users WHERE lower(pseudo) = lower($1)",
+    [pseudo],
+  );
+  if (existing.length > 0) {
+    return { id: Number(existing[0].id), pseudo: String(existing[0].pseudo) };
   }
-  const inserted = await db.execute({
-    sql: "INSERT INTO users (pseudo) VALUES (?) RETURNING id, pseudo",
-    args: [pseudo],
-  });
-  const row = inserted.rows[0];
-  return { id: Number(row.id), pseudo: String(row.pseudo) };
+  const inserted = await query<{ id: number; pseudo: string }>(
+    "INSERT INTO users (pseudo) VALUES ($1) RETURNING id, pseudo",
+    [pseudo],
+  );
+  return { id: Number(inserted[0].id), pseudo: String(inserted[0].pseudo) };
 }
 
 export async function setSessionCookie(user: SessionUser) {

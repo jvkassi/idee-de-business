@@ -1,5 +1,6 @@
 import { after } from "next/server";
-import { getDb, ready } from "./db";
+import { put } from "@vercel/blob";
+import { query, ready } from "./db";
 import { improveIdea, generateCoverImage, type IdeaImprovement } from "./gemini";
 
 export type Category = { id: number; slug: string; name: string; emoji: string };
@@ -40,17 +41,13 @@ export type Comment = {
   authorPseudo: string;
 };
 
-/** Client libsql prêt (schéma initialisé). */
-async function db() {
-  await ready();
-  return getDb();
-}
-
 export async function getCategories(): Promise<Category[]> {
-  const client = await db();
+  await ready();
   // Ordre d'insertion (celui du seed) : "Autre" reste en dernier.
-  const res = await client.execute("SELECT id, slug, name, emoji FROM categories ORDER BY id");
-  return res.rows.map((r) => ({
+  const rows = await query<{ id: number; slug: string; name: string; emoji: string }>(
+    "SELECT id, slug, name, emoji FROM categories ORDER BY id",
+  );
+  return rows.map((r) => ({
     id: Number(r.id),
     slug: String(r.slug),
     name: String(r.name),
@@ -65,7 +62,7 @@ const LIST_SELECT = `
     u.pseudo AS author_pseudo,
     c.slug AS category_slug, c.name AS category_name, c.emoji AS category_emoji,
     (SELECT COUNT(*) FROM votes v WHERE v.idea_id = i.id) AS votes,
-    EXISTS(SELECT 1 FROM votes v2 WHERE v2.idea_id = i.id AND v2.user_id = ?) AS voted,
+    EXISTS(SELECT 1 FROM votes v2 WHERE v2.idea_id = i.id AND v2.user_id = $1) AS voted,
     (SELECT COUNT(*) FROM comments cm WHERE cm.idea_id = i.id) AS comment_count,
     i.cover_status, i.cover_image, i.cover_error
   FROM ideas i
@@ -96,7 +93,7 @@ function rowToListItem(r: Record<string, unknown>): IdeaListItem {
     aiScore: r.ai_score === null || r.ai_score === undefined ? null : Number(r.ai_score),
     aiSummary: parseAi(r.ai_json)?.summary ?? null,
     votes: Number(r.votes),
-    voted: Number(r.voted) === 1,
+    voted: r.voted === true,
     commentCount: Number(r.comment_count),
     coverStatus: String(r.cover_status || "pending") as CoverStatus,
     coverImage: r.cover_image ? String(r.cover_image) : null,
@@ -111,16 +108,17 @@ export async function listIdeas(opts: {
   sort?: SortOrder;
   viewerId?: number;
 }): Promise<IdeaListItem[]> {
-  const client = await db();
+  await ready();
   const conds: string[] = [];
   const args: (string | number)[] = [opts.viewerId ?? -1];
   if (opts.categorySlug) {
-    conds.push("c.slug = ?");
     args.push(opts.categorySlug);
+    conds.push(`c.slug = $${args.length}`);
   }
   if (opts.search) {
-    conds.push("(i.title LIKE ? OR i.pitch LIKE ?)");
-    args.push(`%${opts.search}%`, `%${opts.search}%`);
+    args.push(`%${opts.search}%`);
+    const idx = args.length;
+    conds.push(`(i.title ILIKE $${idx} OR i.pitch ILIKE $${idx})`);
   }
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const order =
@@ -129,21 +127,15 @@ export async function listIdeas(opts: {
       : opts.sort === "score"
         ? "ORDER BY (i.ai_score IS NULL), i.ai_score DESC, i.created_at DESC"
         : "ORDER BY i.created_at DESC";
-  const res = await client.execute({
-    sql: `${LIST_SELECT} ${where} ${order} LIMIT 100`,
-    args,
-  });
-  return res.rows.map((r) => rowToListItem(r as Record<string, unknown>));
+  const rows = await query(`${LIST_SELECT} ${where} ${order} LIMIT 100`, args);
+  return rows.map((r) => rowToListItem(r as Record<string, unknown>));
 }
 
 export async function getIdea(id: number, viewerId?: number): Promise<IdeaDetail | null> {
-  const client = await db();
-  const res = await client.execute({
-    sql: `${LIST_SELECT} WHERE i.id = ?`,
-    args: [viewerId ?? -1, id],
-  });
-  if (res.rows.length === 0) return null;
-  const row = res.rows[0] as Record<string, unknown>;
+  await ready();
+  const rows = await query(`${LIST_SELECT} WHERE i.id = $2`, [viewerId ?? -1, id]);
+  if (rows.length === 0) return null;
+  const row = rows[0] as Record<string, unknown>;
   return {
     ...rowToListItem(row),
     ai: parseAi(row.ai_json),
@@ -153,14 +145,14 @@ export async function getIdea(id: number, viewerId?: number): Promise<IdeaDetail
 }
 
 export async function getComments(ideaId: number): Promise<Comment[]> {
-  const client = await db();
-  const res = await client.execute({
-    sql: `SELECT cm.id, cm.body, cm.created_at, u.pseudo AS author_pseudo
-          FROM comments cm JOIN users u ON u.id = cm.author_id
-          WHERE cm.idea_id = ? ORDER BY cm.created_at ASC`,
-    args: [ideaId],
-  });
-  return res.rows.map((r) => ({
+  await ready();
+  const rows = await query(
+    `SELECT cm.id, cm.body, cm.created_at, u.pseudo AS author_pseudo
+     FROM comments cm JOIN users u ON u.id = cm.author_id
+     WHERE cm.idea_id = $1 ORDER BY cm.created_at ASC`,
+    [ideaId],
+  );
+  return rows.map((r) => ({
     id: Number(r.id),
     body: String(r.body),
     createdAt: String(r.created_at),
@@ -169,25 +161,23 @@ export async function getComments(ideaId: number): Promise<Comment[]> {
 }
 
 export async function addComment(ideaId: number, authorId: number, body: string) {
-  const client = await db();
-  await client.execute({
-    sql: "INSERT INTO comments (idea_id, author_id, body) VALUES (?, ?, ?)",
-    args: [ideaId, authorId, body],
-  });
+  await ready();
+  await query("INSERT INTO comments (idea_id, author_id, body) VALUES ($1, $2, $3)", [
+    ideaId,
+    authorId,
+    body,
+  ]);
 }
 
 /** Ajoute ou retire le vote ; renvoie true si l'utilisateur a maintenant voté. */
 export async function toggleVote(ideaId: number, userId: number): Promise<boolean> {
-  const client = await db();
-  const deleted = await client.execute({
-    sql: "DELETE FROM votes WHERE idea_id = ? AND user_id = ?",
-    args: [ideaId, userId],
-  });
-  if (deleted.rowsAffected > 0) return false;
-  await client.execute({
-    sql: "INSERT INTO votes (idea_id, user_id) VALUES (?, ?)",
-    args: [ideaId, userId],
-  });
+  await ready();
+  const deleted = await query(
+    "DELETE FROM votes WHERE idea_id = $1 AND user_id = $2 RETURNING idea_id",
+    [ideaId, userId],
+  );
+  if (deleted.length > 0) return false;
+  await query("INSERT INTO votes (idea_id, user_id) VALUES ($1, $2)", [ideaId, userId]);
   return true;
 }
 
@@ -197,63 +187,67 @@ export async function createIdea(opts: {
   categorySlug: string;
   authorId: number;
 }): Promise<number> {
-  const client = await db();
-  const cat = await client.execute({
-    sql: "SELECT id, name FROM categories WHERE slug = ?",
-    args: [opts.categorySlug],
-  });
-  if (cat.rows.length === 0) throw new Error("Catégorie invalide");
-  const categoryId = Number(cat.rows[0].id);
-  const categoryName = String(cat.rows[0].name);
+  await ready();
+  const cat = await query<{ id: number; name: string }>(
+    "SELECT id, name FROM categories WHERE slug = $1",
+    [opts.categorySlug],
+  );
+  if (cat.length === 0) throw new Error("Catégorie invalide");
+  const categoryId = Number(cat[0].id);
+  const categoryName = String(cat[0].name);
 
-  const inserted = await client.execute({
-    sql: `INSERT INTO ideas (title, pitch, category_id, author_id, ai_status, cover_status)
-          VALUES (?, ?, ?, ?, 'pending', 'pending') RETURNING id`,
-    args: [opts.title, opts.pitch, categoryId, opts.authorId],
-  });
-  const id = Number(inserted.rows[0].id);
+  const inserted = await query<{ id: number }>(
+    `INSERT INTO ideas (title, pitch, category_id, author_id, ai_status, cover_status)
+     VALUES ($1, $2, $3, $4, 'pending', 'pending') RETURNING id`,
+    [opts.title, opts.pitch, categoryId, opts.authorId],
+  );
+  const id = Number(inserted[0].id);
 
   // Amélioration IA + illustration en arrière-plan, sans bloquer la réponse.
   // `after` garantit que la fonction serverless reste vivante jusqu'à la fin
   // du travail (un simple fire-and-forget serait gelé sur Vercel).
-  after(() => Promise.all([
-    runAiImprovement(id, opts.title, opts.pitch),
-    runCoverGeneration(id, opts.title, opts.pitch, categoryName),
-  ]));
+  after(() =>
+    Promise.all([
+      runAiImprovement(id, opts.title, opts.pitch),
+      runCoverGeneration(id, opts.title, opts.pitch, categoryName),
+    ]),
+  );
 
   return id;
 }
 
 async function runAiImprovement(id: number, title: string, pitch: string) {
-  const client = getDb();
   try {
     const improved = await improveIdea(title, pitch);
-    await client.execute({
-      sql: "UPDATE ideas SET ai_status = 'done', ai_json = ?, ai_score = ?, ai_error = NULL WHERE id = ?",
-      args: [JSON.stringify(improved), improved.score, id],
-    });
+    await query(
+      "UPDATE ideas SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_error = NULL WHERE id = $3",
+      [JSON.stringify(improved), improved.score, id],
+    );
   } catch (err) {
-    await client.execute({
-      sql: "UPDATE ideas SET ai_status = 'failed', ai_error = ? WHERE id = ?",
-      args: [err instanceof Error ? err.message : String(err), id],
-    });
+    await query("UPDATE ideas SET ai_status = 'failed', ai_error = $1 WHERE id = $2", [
+      err instanceof Error ? err.message : String(err),
+      id,
+    ]);
   }
 }
 
 async function runCoverGeneration(id: number, title: string, pitch: string, categoryName: string) {
-  const client = getDb();
   try {
     const image = await generateCoverImage(title, pitch, categoryName);
-    const dataUrl = `data:${image.mimeType};base64,${image.base64}`;
-    await client.execute({
-      sql: "UPDATE ideas SET cover_status = 'done', cover_image = ?, cover_error = NULL WHERE id = ?",
-      args: [dataUrl, id],
+    const ext = image.mimeType === "image/png" ? "png" : "jpg";
+    const blob = await put(`covers/${id}-${Date.now()}.${ext}`, Buffer.from(image.base64, "base64"), {
+      access: "public",
+      contentType: image.mimeType,
     });
+    await query(
+      "UPDATE ideas SET cover_status = 'done', cover_image = $1, cover_error = NULL WHERE id = $2",
+      [blob.url, id],
+    );
   } catch (err) {
-    await client.execute({
-      sql: "UPDATE ideas SET cover_status = 'failed', cover_error = ? WHERE id = ?",
-      args: [err instanceof Error ? err.message : String(err), id],
-    });
+    await query("UPDATE ideas SET cover_status = 'failed', cover_error = $1 WHERE id = $2", [
+      err instanceof Error ? err.message : String(err),
+      id,
+    ]);
   }
 }
 
@@ -262,23 +256,26 @@ async function runCoverGeneration(id: number, title: string, pitch: string, cate
  * le bouton rend la main immédiatement, la page se rafraîchit toute seule.
  */
 export async function retryAiImprovement(id: number): Promise<void> {
-  const client = await db();
-  const res = await client.execute({ sql: "SELECT title, pitch FROM ideas WHERE id = ?", args: [id] });
-  if (res.rows.length === 0) return;
-  const { title, pitch } = res.rows[0];
-  await client.execute({ sql: "UPDATE ideas SET ai_status = 'pending' WHERE id = ?", args: [id] });
+  await ready();
+  const rows = await query<{ title: string; pitch: string }>(
+    "SELECT title, pitch FROM ideas WHERE id = $1",
+    [id],
+  );
+  if (rows.length === 0) return;
+  const { title, pitch } = rows[0];
+  await query("UPDATE ideas SET ai_status = 'pending' WHERE id = $1", [id]);
   after(() => runAiImprovement(id, String(title), String(pitch)));
 }
 
 export async function retryCoverGeneration(id: number): Promise<void> {
-  const client = await db();
-  const res = await client.execute({
-    sql: `SELECT i.title, i.pitch, c.name AS category_name
-          FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = ?`,
-    args: [id],
-  });
-  if (res.rows.length === 0) return;
-  const { title, pitch, category_name } = res.rows[0];
-  await client.execute({ sql: "UPDATE ideas SET cover_status = 'pending' WHERE id = ?", args: [id] });
+  await ready();
+  const rows = await query<{ title: string; pitch: string; category_name: string }>(
+    `SELECT i.title, i.pitch, c.name AS category_name
+     FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = $1`,
+    [id],
+  );
+  if (rows.length === 0) return;
+  const { title, pitch, category_name } = rows[0];
+  await query("UPDATE ideas SET cover_status = 'pending' WHERE id = $1", [id]);
   after(() => runCoverGeneration(id, String(title), String(pitch), String(category_name)));
 }

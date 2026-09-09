@@ -37,8 +37,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# base SQLite locale (dev uniquement, jamais utilisée en prod/Vercel)
-/data
 
 # typescript
 *.tsbuildinfo

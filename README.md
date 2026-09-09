@@ -8,14 +8,18 @@ l'illustre automatiquement.
 
 - **Next.js 16 (App Router, SSR)** — rendu serveur, Server Actions pour les
   formulaires (pas d'API REST séparée à maintenir).
-- **Turso (libsql)** — base SQLite distribuée, gratuite pour un usage type
-  MVP, compatible avec le déploiement serverless de Vercel. En local, elle
-  retombe automatiquement sur un fichier SQLite (`./data/ideas.db`).
+- **Neon (Postgres serverless)** — base relationnelle managée, connectée
+  directement au projet Vercel (intégration marketplace) : `DATABASE_URL`
+  est fournie automatiquement, aucune base locale à gérer même en dev.
+- **Vercel Blob** — stockage des illustrations générées par l'IA (fichiers
+  image, pas de blobs en base). Même principe : connectée au projet Vercel,
+  `BLOB_READ_WRITE_TOKEN` est fournie automatiquement.
 - **Google Gemini** — appelé directement en backend (aucune clé exposée au
   navigateur) pour :
   - structurer/améliorer chaque idée (cible, proposition de valeur, modèle
     de revenus, premiers pas, risques, score sur 100) ;
-  - générer une illustration de couverture (flat design) pour chaque idée.
+  - générer une illustration de couverture (flat design) pour chaque idée,
+    uploadée sur Vercel Blob juste après génération.
 - **Auth ultra légère** — juste un pseudo (pas de mot de passe), stocké dans
   un cookie de session signé (HMAC). Volontairement minimal pour un MVP :
   pas de compte à gérer, pas de mot de passe à sécuriser.
@@ -24,38 +28,37 @@ l'illustre automatiquement.
 
 ```bash
 cp .env.example .env.local
-# renseigner GEMINI_API_KEY (https://aistudio.google.com/apikey)
+# renseigner GEMINI_API_KEY (https://aistudio.google.com/apikey), DATABASE_URL
+# (une base Neon — vercel env pull récupère celle du projet lié) et
+# BLOB_READ_WRITE_TOKEN (idem via vercel env pull)
 npm install
 npm run dev
 ```
 
-Sans `TURSO_DATABASE_URL`, l'app utilise un fichier SQLite local
-(`./data/ideas.db`) — parfait pour le développement.
+Il n'y a pas de repli local sans base de données : `DATABASE_URL` est
+obligatoire, y compris en dev (on utilise la même base Neon qu'en prod,
+ou une base Neon de dev séparée si besoin — le schéma se crée tout seul
+au premier appel).
 
 ## Déployer sur Vercel
 
-1. **Créer la base Turso** (gratuite) :
-   ```bash
-   npm install -g @tursodatabase/cli   # ou: curl -sSfL https://get.tur.so/install.sh | bash
-   turso auth login
-   turso db create idees-business
-   turso db show idees-business --url          # -> TURSO_DATABASE_URL
-   turso db tokens create idees-business        # -> TURSO_AUTH_TOKEN
-   ```
-2. **Importer le projet sur Vercel** (vercel.com/new, ou `vercel` CLI).
-3. **Variables d'environnement** à définir sur le projet Vercel :
-   - `TURSO_DATABASE_URL`
-   - `TURSO_AUTH_TOKEN`
+1. **Importer le projet sur Vercel** (vercel.com/new, ou `vercel link`).
+2. **Connecter Neon** : `vercel integration add neon` (ou depuis le
+   dashboard Vercel → Storage → Marketplace). Provisionne une base Postgres
+   et renseigne `DATABASE_URL` sur les 3 environnements automatiquement.
+3. **Connecter Vercel Blob** : `vercel blob create-store <nom> --access public`
+   (ou depuis le dashboard). Renseigne `BLOB_READ_WRITE_TOKEN` automatiquement.
+4. **Variables d'environnement** restantes à définir sur le projet Vercel :
    - `GEMINI_API_KEY`
    - `SESSION_SECRET` (chaîne aléatoire longue, ex: `openssl rand -hex 32`)
-   - `GEMINI_MODEL` (optionnel, défaut `gemini-3.5-flash`)
-   - `GEMINI_IMAGE_MODEL` (optionnel, défaut `gemini-3.1-flash-image`)
-4. Déployer. Le schéma SQLite (tables + catégories) est créé automatiquement
-   au premier appel — aucune migration manuelle à lancer.
+   - `IDEAS_TEXT_MODEL` (optionnel, défaut `gemini-3.5-flash`)
+   - `IDEAS_IMAGE_MODEL` (optionnel, défaut `gemini-3.1-flash-image`)
+5. Déployer (`vercel deploy --prod`, ou push sur `main` — voir CI/CD
+   ci-dessous). Le schéma Postgres (tables + catégories) est créé
+   automatiquement au premier appel — aucune migration manuelle à lancer.
 
-Sur Vercel, si `TURSO_DATABASE_URL` n'est pas défini, l'app refuse de
-démarrer une requête base de données plutôt que d'écrire silencieusement
-dans un système de fichiers éphémère qui perdrait les données.
+Sur Vercel, si `DATABASE_URL` n'est pas défini, l'app refuse de servir une
+requête base de données plutôt que d'échouer silencieusement.
 
 ## CI/CD (GitHub Actions)
 
@@ -77,13 +80,13 @@ en secrets GitHub.)
 
 ## Limites connues du MVP (à faire évoluer si ça prend)
 
-- Les illustrations générées sont stockées en base (data URL base64,
-  ~0.5-1 Mo par idée). Très bien pour démarrer, mais à migrer vers un
-  stockage objet (Vercel Blob, S3…) si le volume d'idées grossit — Turso
-  facture au stockage au-delà du quota gratuit.
 - L'auth par pseudo seul n'empêche pas l'usurpation d'un pseudo existant si
   quelqu'un le devine (pas de mot de passe). Suffisant pour un MVP entre
-  connaissances / une communauté de confiance, à muscler (email magic link,
-  OAuth…) avant une ouverture plus large.
-- Pas de modération de contenu : à ajouter avant une mise en ligne publique
-  (signalement, filtrage, rate limiting sur la création d'idées/commentaires).
+  connaissances / une communauté de confiance, à muscler (PIN, email magic
+  link, OAuth…) avant une ouverture plus large.
+- Pas de modération de contenu ni de rate limiting : à ajouter avant une
+  mise en ligne publique (signalement, filtrage anti-spam via l'IA, limite
+  d'idées/commentaires par utilisateur ou IP).
+- Le fil d'accueil charge jusqu'à 100 idées sans pagination : à revoir
+  (pagination ou scroll infini) avant que le volume d'idées ne devienne
+  important.
