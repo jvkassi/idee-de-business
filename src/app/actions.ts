@@ -9,8 +9,16 @@ import {
   clearSessionCookie,
   validatePseudo,
 } from "@/lib/session";
-import { addComment, createIdea, retryAiImprovement, retryCoverGeneration, toggleVote } from "@/lib/ideas";
+import {
+  addComment,
+  createIdea,
+  getCategories,
+  retryAiImprovement,
+  retryCoverGeneration,
+  toggleVote,
+} from "@/lib/ideas";
 import { loginHref, safeNext } from "@/lib/format";
+import { transcribeIdeaAudio, type VoiceIdeaDraft } from "@/lib/gemini";
 
 export type FormState = { error?: string } | undefined;
 
@@ -50,6 +58,36 @@ export async function createIdeaAction(_prev: FormState, formData: FormData): Pr
   revalidatePath("/");
   // ?new=1 : la page de l'idée affiche la bannière "publiée, l'IA travaille".
   redirect(`/ideas/${id}?new=1`);
+}
+
+export type TranscribeResult = ({ ok: true } & VoiceIdeaDraft) | { ok: false; error: string };
+
+export async function transcribeIdeaAudioAction(formData: FormData): Promise<TranscribeResult> {
+  const user = await getSession();
+  if (!user) return { ok: false, error: "Connecte-toi d'abord." };
+
+  const audio = formData.get("audio");
+  if (!(audio instanceof File) || audio.size === 0) {
+    return { ok: false, error: "Aucun enregistrement reçu." };
+  }
+  // Un enregistrement trop court n'aura pas assez de matière pour une bonne
+  // analyse IA ; on encourage 30 s minimum côté client, mais on protège aussi
+  // ici (l'API pourrait être appelée directement).
+  if (audio.size < 15_000) {
+    return { ok: false, error: "Enregistrement trop court, réessaie en donnant plus de détails." };
+  }
+
+  const categories = await getCategories();
+  const buffer = Buffer.from(await audio.arrayBuffer());
+  const base64 = buffer.toString("base64");
+  const mimeType = audio.type || "audio/webm";
+
+  try {
+    const draft = await transcribeIdeaAudio(base64, mimeType, categories);
+    return { ok: true, ...draft };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Échec de la transcription." };
+  }
 }
 
 export async function addCommentAction(_prev: FormState, formData: FormData): Promise<FormState> {

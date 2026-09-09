@@ -3,7 +3,9 @@
 import { useActionState, useState } from "react";
 import { createIdeaAction, type FormState } from "@/app/actions";
 import type { Category } from "@/lib/ideas";
+import type { VoiceIdeaDraft } from "@/lib/gemini";
 import { categoryStyle } from "@/lib/categoryColor";
+import VoiceRecorder from "@/components/VoiceRecorder";
 
 const LIMITS = { title: { min: 5, max: 120 }, pitch: { min: 20, max: 2000 } };
 
@@ -18,11 +20,55 @@ function Counter({ value, min, max }: { value: number; min: number; max: number 
 
 export default function NewIdeaForm({ categories }: { categories: Category[] }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(createIdeaAction, undefined);
+  const [mode, setMode] = useState<"voice" | "manual">("voice");
   const [title, setTitle] = useState("");
   const [pitch, setPitch] = useState("");
+  const [categorySlug, setCategorySlug] = useState("");
+  const [fromVoice, setFromVoice] = useState(false);
+
+  function handleTranscribed(draft: VoiceIdeaDraft) {
+    setTitle(draft.suggestedTitle || title);
+    setPitch(draft.transcript);
+    setCategorySlug(draft.suggestedCategorySlug || categorySlug);
+    setFromVoice(true);
+    setMode("manual");
+  }
+
+  if (mode === "voice") {
+    return (
+      <div className="space-y-4">
+        <VoiceRecorder onTranscribed={handleTranscribed} />
+        <p className="text-center text-xs text-ink-3">
+          Tu préfères écrire ?{" "}
+          <button type="button" onClick={() => setMode("manual")} className="font-medium text-ink underline underline-offset-4">
+            Tape ton idée toi-même
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-6">
+      {fromVoice && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-sun-soft px-3.5 py-2.5 text-xs">
+          <span>
+            <strong className="font-semibold">Transcrit depuis ton enregistrement.</strong> Relis et corrige si besoin
+            avant de publier.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setFromVoice(false);
+              setMode("voice");
+            }}
+            className="shrink-0 font-medium text-ink underline underline-offset-4"
+          >
+            Réenregistrer
+          </button>
+        </div>
+      )}
+
       <div>
         <div className="mb-1.5 flex items-baseline justify-between">
           <label htmlFor="title" className="text-sm font-semibold">
@@ -53,7 +99,15 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
               style={categoryStyle(c.slug)}
               className="chip cursor-pointer select-none has-checked:border-ink has-checked:bg-ink has-checked:text-paper has-focus-visible:ring-2 has-focus-visible:ring-ink"
             >
-              <input type="radio" name="category" value={c.slug} required={i === 0} className="sr-only" />
+              <input
+                type="radio"
+                name="category"
+                value={c.slug}
+                required={i === 0}
+                checked={categorySlug === c.slug}
+                onChange={() => setCategorySlug(c.slug)}
+                className="sr-only"
+              />
               <span className="cat-dot" aria-hidden /> {c.name}
             </label>
           ))}

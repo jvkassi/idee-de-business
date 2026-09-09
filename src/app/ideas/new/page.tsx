@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Proposer une idée" };
 export const maxDuration = 60;
 
 const STEPS = [
-  { who: "toi", title: "Tu poses l'idée", text: "Un titre, une catégorie, quelques lignes. Brouillon accepté." },
+  { who: "toi", title: "Tu la racontes à voix haute", text: "30 secondes minimum, sois verbeux. Tu peux aussi l'écrire si tu préfères." },
   { who: "ia", title: "La machine la structure", text: "Cible, valeur, revenus, risques, premiers pas et une note sur 100. ~20 s." },
   { who: "ia", title: "Elle reçoit son illustration", text: "Dessinée à partir de ton texte. ~30 s." },
   { who: "eux", title: "La communauté tranche", text: "Votes et réactions : c'est là que ça se valide (ou pas)." },
@@ -28,11 +28,11 @@ export default async function NewIdeaPage() {
       <section className="card p-5 sm:p-7">
         <p className="label">Nouvelle idée</p>
         <h1 className="mt-1 font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-          Pose-la <span className="hl">même brute.</span>
+          Raconte-la, <span className="hl">à voix haute.</span>
         </h1>
         <p className="mt-3 text-[15px] text-ink-2">
-          Pas besoin de business plan. Écris-la comme tu la raconterais à un ami — la machine fera le premier tri,
-          la communauté fera le reste.
+          Pas besoin de business plan. Décris ton idée comme tu la raconterais à un ami — 30 secondes minimum,
+          sois précis et verbeux : plus tu donnes de détails, meilleure sera l&apos;analyse.
         </p>
         <div className="mt-7">
           <NewIdeaForm categories={categories} />
