@@ -8,9 +8,9 @@ import LoginForm from "./LoginForm";
 export const metadata: Metadata = { title: "Connexion" };
 
 const POINTS = [
-  { icon: "🔓", text: "Pas de mot de passe, pas d'email. Juste un pseudo." },
-  { icon: "🪪", text: "Ton pseudo, c'est ton identité ici : il signe tes idées, tes votes et tes réactions." },
-  { icon: "↩️", text: "Il existe déjà ? Tu te reconnectes dessus, tout simplement." },
+  "Pas de mot de passe, pas d'email. Juste un pseudo.",
+  "Il signe tes idées, tes votes et tes réactions.",
+  "Il existe déjà ? Tu te reconnectes dessus, c'est tout.",
 ];
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
@@ -19,19 +19,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (user) redirect(next);
 
   return (
-    <div className="mx-auto grid max-w-3xl gap-6 py-4 md:grid-cols-[1fr_1fr] md:items-center md:py-10">
+    <div className="mx-auto grid max-w-3xl gap-8 py-4 md:grid-cols-[1fr_1fr] md:items-center md:py-10">
       <section>
-        <Logo className="mb-5 h-12 w-12" />
-        <h1 className="font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-          Choisis un pseudo, <span className="text-brand">c&apos;est tout.</span>
+        <Logo className="mb-6 h-12 w-12" />
+        <h1 className="font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+          Un pseudo, <span className="hl">c&apos;est tout.</span>
         </h1>
-        <ul className="mt-6 space-y-3">
+        <ul className="mt-6 space-y-2.5">
           {POINTS.map((p, i) => (
-            <li key={i} className="flex gap-3 text-sm text-ink-2">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-surface-2" aria-hidden>
-                {p.icon}
-              </span>
-              <span className="pt-1.5">{p.text}</span>
+            <li key={i} className="flex gap-3 text-[15px] text-ink-2">
+              <span className="mt-[11px] h-px w-4 shrink-0 bg-ink" aria-hidden />
+              <span>{p}</span>
             </li>
           ))}
         </ul>

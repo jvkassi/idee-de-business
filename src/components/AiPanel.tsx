@@ -1,58 +1,97 @@
 import type { IdeaDetail } from "@/lib/ideas";
 import { retryAiAction } from "@/app/actions";
-import { SparkIcon } from "@/components/AiBadge";
-import ScoreRing from "@/components/ScoreRing";
+import { AiTag, Pulse } from "@/components/AiBadge";
+import ScoreMeter from "@/components/ScoreMeter";
 import RetryButton from "@/components/RetryButton";
 
-function Fact({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-surface-2/70 p-3.5">
-      <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-3">
-        <span aria-hidden>{icon}</span> {label}
-      </h3>
-      <div className="text-sm leading-relaxed text-ink">{children}</div>
+    <div className="grid gap-1.5 border-t border-line py-4 first:border-t-0 first:pt-0 sm:grid-cols-[150px_1fr] sm:gap-6">
+      <dt className="label pt-0.5">{label}</dt>
+      <dd className="text-[15px] leading-relaxed text-ink">{children}</dd>
     </div>
   );
 }
 
-/** Le bloc "analyse IA" de la page idée, dans ses trois états. */
+function StatusLine({
+  status,
+  label,
+  doneLabel,
+  pendingLabel,
+}: {
+  status: string;
+  label: string;
+  doneLabel: string;
+  pendingLabel: string;
+}) {
+  return (
+    <li className="flex items-center gap-3 text-sm">
+      <span className="grid w-4 place-items-center">
+        {status === "pending" ? (
+          <Pulse />
+        ) : status === "done" ? (
+          <svg viewBox="0 0 20 20" className="h-4 w-4 text-ok" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+            <path d="M4 10.5l4 4 8-9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <span className="h-1.5 w-1.5 rounded-full bg-line-2" aria-hidden />
+        )}
+      </span>
+      <span className="font-medium text-ink">{label}</span>
+      <span className="text-ink-3">{status === "pending" ? pendingLabel : status === "done" ? doneLabel : "—"}</span>
+    </li>
+  );
+}
+
+/**
+ * La fiche IA : la voix de la machine. Encre sur papier, libellés en
+ * capitales, filets fins, une jauge honnête. Trois états : en cours (avec
+ * l'avancement réel des deux traitements), échec, terminé.
+ */
 export default function AiPanel({ idea }: { idea: IdeaDetail }) {
   return (
-    <section
-      aria-labelledby="ai-title"
-      className="card overflow-hidden border-ai/25"
-    >
-      <div className="flex items-center justify-between gap-3 border-b border-ai/15 bg-[linear-gradient(120deg,var(--ai-soft),transparent_70%)] px-4 py-3 sm:px-5">
-        <h2 id="ai-title" className="flex items-center gap-2 font-display text-base font-bold text-ai">
-          <SparkIcon className="h-4 w-4" />
-          Analyse IA
+    <section aria-labelledby="ai-title" className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-6">
+        <h2 id="ai-title" className="flex items-center gap-2 font-display text-base font-bold">
+          <AiTag />
+          Fiche générée
         </h2>
-        {idea.aiStatus === "done" && idea.ai && (
-          <span className="text-xs font-medium text-ink-3">Potentiel estimé</span>
-        )}
+        <span className="text-xs text-ink-3">Gemini · estimation automatique</span>
       </div>
 
-      <div className="p-4 sm:p-5">
+      <div className="px-4 py-5 sm:px-6">
         {idea.aiStatus === "pending" && (
-          <div className="space-y-4" aria-live="polite">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ai opacity-60" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ai" />
-              </span>
-              <p className="text-sm text-ink-2">
-                <span className="font-semibold text-ink">L&apos;IA analyse cette idée</span> — cible, modèle de
-                revenus, risques, premiers pas et score. Une vingtaine de secondes ; la page se met à jour toute seule.
+          <div className="grid gap-6 sm:grid-cols-[240px_1fr]" aria-live="polite">
+            <div>
+              <p className="font-display text-lg font-bold leading-snug">La machine lit ton idée.</p>
+              <p className="mt-1 text-sm text-ink-2">
+                Une vingtaine de secondes. La page se met à jour toute seule.
               </p>
+              <ul className="mt-4 space-y-2.5">
+                <StatusLine
+                  status={idea.aiStatus}
+                  label="Analyse"
+                  doneLabel="terminée"
+                  pendingLabel="cible, valeur, revenus, risques, note…"
+                />
+                <StatusLine
+                  status={idea.coverStatus}
+                  label="Illustration"
+                  doneLabel="prête"
+                  pendingLabel="en cours de dessin"
+                />
+              </ul>
             </div>
-            <div className="space-y-2.5" aria-hidden>
+            <div className="space-y-3" aria-hidden>
+              <div className="skeleton h-10 w-28" />
               <div className="skeleton h-3.5 w-11/12" />
               <div className="skeleton h-3.5 w-4/5" />
-              <div className="grid gap-3 pt-2 sm:grid-cols-2">
-                <div className="skeleton h-20" />
-                <div className="skeleton h-20" />
-                <div className="skeleton h-20" />
-                <div className="skeleton h-20" />
+              <div className="skeleton h-3.5 w-2/3" />
+              <div className="mt-5 space-y-2.5">
+                <div className="skeleton h-3 w-24" />
+                <div className="skeleton h-3.5 w-full" />
+                <div className="skeleton h-3 w-24" />
+                <div className="skeleton h-3.5 w-11/12" />
               </div>
             </div>
           </div>
@@ -80,51 +119,50 @@ export default function AiPanel({ idea }: { idea: IdeaDetail }) {
         )}
 
         {idea.aiStatus === "done" && idea.ai && (
-          <div className="space-y-5">
-            <div className="flex items-start gap-4">
-              <ScoreRing score={idea.ai.score} />
-              <div className="min-w-0 flex-1">
-                <p className="text-[15px] leading-relaxed text-ink">{idea.ai.summary}</p>
-              </div>
+          <div className="space-y-6">
+            <div className="grid gap-6 sm:grid-cols-[200px_1fr] sm:gap-8">
+              <ScoreMeter score={idea.ai.score} />
+              <p className="text-[15px] leading-relaxed text-ink sm:text-base">{idea.ai.summary}</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Fact icon="🎯" label="Cible">
+            <dl className="border-t border-line pt-4">
+              <Row label="Cible">
                 <p>{idea.ai.targetAudience}</p>
-              </Fact>
-              <Fact icon="💎" label="Proposition de valeur">
+              </Row>
+              <Row label="Proposition de valeur">
                 <p>{idea.ai.valueProposition}</p>
-              </Fact>
-              <Fact icon="💰" label="Modèle de revenus">
+              </Row>
+              <Row label="Modèle de revenus">
                 <p>{idea.ai.revenueModel}</p>
-              </Fact>
-              <Fact icon="⚠️" label="Risques">
-                <ul className="space-y-1">
+              </Row>
+              <Row label="Risques">
+                <ul className="space-y-1.5">
                   {idea.ai.risks.map((r, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-warn" aria-hidden />
+                    <li key={i} className="flex gap-2.5">
+                      <span className="mt-[11px] h-px w-3 shrink-0 bg-ink" aria-hidden />
                       <span>{r}</span>
                     </li>
                   ))}
                 </ul>
-              </Fact>
-            </div>
+              </Row>
+              <Row label="Premiers pas">
+                <ol className="space-y-2">
+                  {idea.ai.firstSteps.map((s, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-ink font-display text-xs font-bold tabular-nums">
+                        {i + 1}
+                      </span>
+                      <span className="pt-0.5">{s}</span>
+                    </li>
+                  ))}
+                </ol>
+              </Row>
+            </dl>
 
-            <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-3">
-                <span aria-hidden>🚀</span> Premiers pas
-              </h3>
-              <ol className="space-y-2">
-                {idea.ai.firstSteps.map((s, i) => (
-                  <li key={i} className="flex gap-3 text-sm leading-relaxed">
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-ai-soft font-display text-xs font-bold text-ai">
-                      {i + 1}
-                    </span>
-                    <span className="pt-0.5">{s}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            <p className="border-t border-line pt-4 text-xs leading-relaxed text-ink-3">
+              Cette fiche est déduite du texte de l&apos;idée, rien de plus. La note situe un potentiel, elle ne le
+              prouve pas — les votes et les réactions de la communauté pèsent autant.
+            </p>
           </div>
         )}
       </div>

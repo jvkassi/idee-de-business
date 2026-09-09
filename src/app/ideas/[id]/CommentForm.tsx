@@ -19,7 +19,7 @@ export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo
       <div className="min-w-0 flex-1 space-y-2">
         <input type="hidden" name="ideaId" value={ideaId} />
         <label htmlFor="comment-body" className="sr-only">
-          Ton commentaire
+          Ta réaction
         </label>
         <textarea
           id="comment-body"
@@ -35,8 +35,8 @@ export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo
           <p className="text-xs text-bad" role="alert">
             {state?.error}
           </p>
-          <button type="submit" disabled={pending} className="btn btn-primary px-4 py-2">
-            {pending ? "Envoi…" : "Publier"}
+          <button type="submit" disabled={pending} className="btn btn-sun px-4 py-2">
+            {pending ? "Envoi…" : "Réagir"}
           </button>
         </div>
       </div>

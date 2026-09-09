@@ -14,14 +14,14 @@ type Props = {
 };
 
 const SIZE = {
-  sm: "min-w-14 flex-col gap-0 rounded-xl px-2.5 py-2 text-xs",
+  sm: "w-14 flex-col gap-0.5 rounded-xl px-1.5 py-2 text-xs",
   lg: "gap-2 rounded-xl px-4 py-2.5 text-sm",
 } as const;
 
 /**
- * Vote optimiste : le compteur change immédiatement, le serveur confirme
- * ensuite (Server Action + revalidation). Déconnecté → lien vers la connexion
- * qui ramène ici après.
+ * Le verdict humain. Vote optimiste : le compteur change tout de suite, le
+ * serveur confirme ensuite. Un vote posé = soleil ; sinon papier.
+ * Déconnecté → lien vers la connexion qui ramène ici après.
  */
 export default function VoteButton({ ideaId, votes, voted, loggedIn, size = "lg" }: Props) {
   const [pending, startTransition] = useTransition();
@@ -33,28 +33,24 @@ export default function VoteButton({ ideaId, votes, voted, loggedIn, size = "lg"
   const active = optimistic.voted;
   const base = `inline-flex items-center justify-center border font-semibold tabular-nums transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] ${SIZE[size]}`;
   const look = active
-    ? "border-brand bg-brand text-brand-ink shadow-brand"
-    : "border-line-2 bg-surface text-ink hover:border-brand hover:text-brand";
+    ? "border-ink bg-sun text-ink hover:bg-sun-2"
+    : "border-line-2 bg-surface text-ink hover:border-ink";
 
   const content = (
     <>
-      <svg viewBox="0 0 20 20" className={size === "sm" ? "h-4 w-4" : "h-4 w-4"} fill="currentColor" aria-hidden>
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
         <path d="M10 4l6 8H4l6-8Z" />
       </svg>
-      <span className={size === "sm" ? "text-sm leading-tight" : "text-base leading-none"}>
+      <span className={size === "sm" ? "font-display text-base leading-none" : "font-display text-base leading-none"}>
         {optimistic.votes}
       </span>
-      {size === "lg" && <span className="font-medium text-current/80">{active ? "Soutenue" : "Soutenir"}</span>}
+      {size === "lg" && <span className="font-medium">{active ? "Soutenue" : "Soutenir"}</span>}
     </>
   );
 
   if (!loggedIn) {
     return (
-      <Link
-        href={loginHref(`/ideas/${ideaId}`)}
-        title="Connecte-toi pour voter"
-        className={`${base} ${look}`}
-      >
+      <Link href={loginHref(`/ideas/${ideaId}`)} title="Connecte-toi pour voter" className={`${base} ${look}`}>
         {content}
       </Link>
     );

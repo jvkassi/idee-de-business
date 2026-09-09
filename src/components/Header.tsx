@@ -7,7 +7,7 @@ import Logo from "@/components/Logo";
 
 export default function Header({ user }: { user: SessionUser | null }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-canvas/85 backdrop-blur supports-[backdrop-filter]:bg-canvas/70">
+    <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/80">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 sm:h-16">
         <Link href="/" className="flex items-center gap-2.5 rounded-lg" aria-label="Idées de Business — accueil">
           <Logo className="h-8 w-8" />
@@ -16,11 +16,8 @@ export default function Header({ user }: { user: SessionUser | null }) {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-2 sm:gap-3">
-          <Link
-            href={user ? "/ideas/new" : loginHref("/ideas/new")}
-            className="btn btn-primary px-3 py-2 sm:px-4"
-          >
+        <nav className="flex items-center gap-1.5 sm:gap-2">
+          <Link href={user ? "/ideas/new" : loginHref("/ideas/new")} className="btn btn-sun px-3 py-2 sm:px-4">
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
               <path d="M10 4v12M4 10h12" strokeLinecap="round" />
             </svg>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createIdeaAction, type FormState } from "@/app/actions";
 import type { Category } from "@/lib/ideas";
+import { categoryStyle } from "@/lib/categoryColor";
 
 const LIMITS = { title: { min: 5, max: 120 }, pitch: { min: 20, max: 2000 } };
 
@@ -38,7 +39,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="ex : Livraison de repas faits maison entre voisins"
-          className="input text-base font-medium"
+          className="input font-display text-lg font-semibold"
           autoComplete="off"
         />
       </div>
@@ -49,10 +50,11 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
           {categories.map((c, i) => (
             <label
               key={c.slug}
-              className="chip cursor-pointer select-none has-checked:border-ink has-checked:bg-ink has-checked:text-canvas has-focus-visible:ring-2 has-focus-visible:ring-brand"
+              style={categoryStyle(c.slug)}
+              className="chip cursor-pointer select-none has-checked:border-ink has-checked:bg-ink has-checked:text-paper has-focus-visible:ring-2 has-focus-visible:ring-ink"
             >
               <input type="radio" name="category" value={c.slug} required={i === 0} className="sr-only" />
-              <span aria-hidden>{c.emoji}</span> {c.name}
+              <span className="cat-dot" aria-hidden /> {c.name}
             </label>
           ))}
         </div>
@@ -61,7 +63,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
       <div>
         <div className="mb-1.5 flex items-baseline justify-between">
           <label htmlFor="pitch" className="text-sm font-semibold">
-            Description
+            L&apos;idée, dans tes mots
           </label>
           <Counter value={pitch.length} {...LIMITS.pitch} />
         </div>
@@ -71,14 +73,14 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
           required
           minLength={LIMITS.pitch.min}
           maxLength={LIMITS.pitch.max}
-          rows={7}
+          rows={8}
           value={pitch}
           onChange={(e) => setPitch(e.target.value)}
           placeholder="Le problème que tu as repéré, ta solution, pour qui, et comment ça rapporte."
           className="input resize-y leading-relaxed"
         />
         <p className="mt-1.5 text-xs text-ink-3">
-          Minimum {LIMITS.pitch.min} caractères. Plus c&apos;est concret, plus l&apos;analyse IA est utile.
+          Minimum {LIMITS.pitch.min} caractères. Plus c&apos;est concret, plus la fiche sera utile.
         </p>
       </div>
 
@@ -88,7 +90,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
         </p>
       )}
 
-      <button type="submit" disabled={pending} className="btn btn-primary w-full py-3 text-base">
+      <button type="submit" disabled={pending} className="btn btn-sun w-full py-3 text-base">
         {pending ? (
           <>
             <svg className="h-4 w-4 animate-spin" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
@@ -97,7 +99,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
             Publication…
           </>
         ) : (
-          "Publier l'idée"
+          "Publier et lancer la fiche"
         )}
       </button>
     </form>

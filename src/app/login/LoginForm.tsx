@@ -14,7 +14,7 @@ export default function LoginForm({ next }: { next: string }) {
           Ton pseudo
         </label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-display text-base font-bold text-ink-3">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-display text-lg font-bold text-ink-3">
             @
           </span>
           <input
@@ -29,7 +29,7 @@ export default function LoginForm({ next }: { next: string }) {
             spellCheck={false}
             autoFocus
             placeholder="jean_biz"
-            className="input pl-9 text-base font-medium"
+            className="input pl-9 font-display text-lg font-semibold"
           />
         </div>
         <p className="mt-1.5 text-xs text-ink-3">3 à 20 caractères : lettres, chiffres, _ ou -.</p>
@@ -41,12 +41,10 @@ export default function LoginForm({ next }: { next: string }) {
         </p>
       )}
 
-      <button type="submit" disabled={pending} className="btn btn-primary w-full py-3 text-base">
+      <button type="submit" disabled={pending} className="btn btn-sun w-full py-3 text-base">
         {pending ? "Connexion…" : "C'est parti"}
       </button>
-      {next !== "/" && (
-        <p className="text-center text-xs text-ink-3">Tu seras redirigé là où tu en étais.</p>
-      )}
+      {next !== "/" && <p className="text-center text-xs text-ink-3">Tu seras redirigé là où tu en étais.</p>}
     </form>
   );
 }

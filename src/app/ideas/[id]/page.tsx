@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getIdea, getComments } from "@/lib/ideas";
 import { getSession } from "@/lib/session";
 import { formatDateTime, loginHref, plural, timeAgo } from "@/lib/format";
+import { categoryStyle } from "@/lib/categoryColor";
 import { retryCoverAction } from "@/app/actions";
 import VoteButton from "@/components/VoteButton";
 import AiBadge from "@/components/AiBadge";
@@ -64,58 +65,41 @@ export default async function IdeaPage({
   const justPublished = sp.new === "1";
 
   return (
-    <article className="mx-auto max-w-3xl space-y-6">
+    <article className="mx-auto max-w-3xl space-y-7" style={categoryStyle(idea.categorySlug)}>
       {processing && <AutoRefresh />}
 
       {justPublished && (
         <div
           role="status"
           className={`flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
-            processing ? "border-ai/30 bg-ai-soft text-ink" : "border-ok/30 bg-ok-soft text-ink"
+            processing ? "border-ink bg-sun-soft" : "border-ok/40 bg-ok-soft"
           }`}
         >
           <span className="text-lg leading-none" aria-hidden>
-            {processing ? "🎉" : "✅"}
+            {processing ? "✍️" : "✅"}
           </span>
           <div>
-            <p className="font-semibold">Ton idée est publiée !</p>
+            <p className="font-semibold">C&apos;est publié.</p>
             <p className="text-ink-2">
               {processing
-                ? "L'IA la structure et dessine son illustration (~30 s). Pas besoin de rafraîchir, ça s'affiche ici."
-                : "Analyse et illustration terminées. Partage-la pour récolter des votes."}
+                ? "Ta fiche s'écrit et ton illustration se dessine (~30 s). Pas besoin de rafraîchir, ça apparaît ici."
+                : "Fiche et illustration terminées. Partage-la pour récolter des votes."}
             </p>
           </div>
         </div>
       )}
 
-      {/* Couverture */}
-      {idea.coverStatus === "done" && idea.coverImage && (
-        <div className="overflow-hidden rounded-2xl border border-line shadow-card">
-          <CoverImage src={idea.coverImage} title={idea.title} className="aspect-video w-full object-cover" />
-        </div>
-      )}
-      {idea.coverStatus === "pending" && (
-        <div className="skeleton relative aspect-video w-full rounded-2xl" aria-live="polite">
-          <div className="absolute inset-0 grid place-items-center">
-            <span className="rounded-full bg-surface/80 px-3 py-1.5 text-xs font-medium text-ink-2 backdrop-blur">
-              🎨 Illustration en cours de génération…
-            </span>
-          </div>
-        </div>
-      )}
-      {idea.coverStatus === "failed" && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-line-2 bg-surface-2/60 px-4 py-3 text-sm text-ink-2">
-          <span>🎨 Illustration indisponible pour le moment.</span>
-          <RetryButton action={retryCoverAction.bind(null, idea.id)} label="Regénérer" />
-        </div>
-      )}
-
-      {/* En-tête */}
+      {/* En-tête : la voix humaine */}
       <header className="space-y-4">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-3">
-          <Link href={`/?cat=${idea.categorySlug}`} className="chip px-2.5 py-1 text-xs">
-            {idea.categoryEmoji} {idea.categoryName}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-ink-3">
+          <Link
+            href={`/?cat=${idea.categorySlug}`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-cat underline-offset-4 hover:underline"
+          >
+            <span className="cat-dot" aria-hidden />
+            {idea.categoryName}
           </Link>
+          <span aria-hidden>·</span>
           <span className="inline-flex items-center gap-1.5">
             <Avatar pseudo={idea.authorPseudo} size="sm" />
             <span className="font-medium text-ink-2">@{idea.authorPseudo}</span>
@@ -126,33 +110,77 @@ export default async function IdeaPage({
           </time>
         </div>
 
-        <h1 className="font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{idea.title}</h1>
-        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink-2 sm:text-base">{idea.pitch}</p>
+        <h1 className="font-display text-3xl font-bold leading-[1.08] tracking-tight sm:text-[2.75rem]">{idea.title}</h1>
+      </header>
 
-        <div className="flex flex-wrap items-center gap-2 border-y border-line py-3">
-          <VoteButton ideaId={idea.id} votes={idea.votes} voted={idea.voted} loggedIn={!!user} />
+      {/* Illustration dans son passe-partout — le cadre tient, quoi que dessine la machine */}
+      {idea.coverStatus !== "skipped" && (
+        <div className="mat rounded-2xl p-2">
+          <div className="relative grid aspect-video w-full place-items-center overflow-hidden rounded-xl">
+            <span className="text-6xl" aria-hidden>
+              {idea.categoryEmoji}
+            </span>
+            {idea.coverStatus === "pending" && (
+              <div className="skeleton absolute inset-0 rounded-xl opacity-80" aria-live="polite">
+                <div className="absolute inset-0 grid place-items-center">
+                  <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2">
+                    Illustration en cours de dessin…
+                  </span>
+                </div>
+              </div>
+            )}
+            {idea.coverStatus === "done" && idea.coverImage && (
+              <CoverImage src={idea.coverImage} title={idea.title} className="absolute inset-0 h-full w-full object-cover" />
+            )}
+            {idea.coverStatus === "failed" && (
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-surface/90 px-4 py-2.5 text-sm text-ink-2 backdrop-blur">
+                <span>Illustration indisponible pour le moment.</span>
+                <RetryButton action={retryCoverAction.bind(null, idea.id)} label="Regénérer" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* L'idée brute, dans ses mots, surlignée */}
+      <section aria-labelledby="pitch-title">
+        <h2 id="pitch-title" className="label mb-2">
+          L&apos;idée, dans les mots de @{idea.authorPseudo}
+        </h2>
+        <p className="whitespace-pre-wrap border-l-[3px] border-sun pl-4 font-display text-lg leading-relaxed text-ink sm:text-xl">
+          {idea.pitch}
+        </p>
+      </section>
+
+      {/* Les deux verdicts, côte à côte */}
+      <div className="flex flex-wrap items-center gap-2 border-y border-line py-3">
+        <VoteButton ideaId={idea.id} votes={idea.votes} voted={idea.voted} loggedIn={!!user} />
+        <span className="inline-flex h-10 items-center rounded-xl border border-line px-3">
+          <AiBadge status={idea.aiStatus} score={idea.aiScore} />
+        </span>
+        <span className="ml-auto flex items-center gap-2">
           <a href="#commentaires" className="btn btn-outline px-3 py-2 text-xs">
-            💬 {plural(comments.length, "commentaire")}
+            {plural(comments.length, "réaction")}
           </a>
           <ShareButton title={idea.title} />
-          <span className="ml-auto">
-            <AiBadge status={idea.aiStatus} score={idea.aiScore} />
-          </span>
-        </div>
-      </header>
+        </span>
+      </div>
 
       <AiPanel idea={idea} />
 
-      {/* Commentaires */}
+      {/* Réactions : la communauté */}
       <section id="commentaires" aria-labelledby="comments-title" className="scroll-mt-20 space-y-4">
-        <h2 id="comments-title" className="flex items-center gap-2 font-display text-lg font-bold">
-          Réactions
-          {comments.length > 0 && (
-            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold tabular-nums text-ink-2">
-              {comments.length}
-            </span>
-          )}
-        </h2>
+        <div>
+          <p className="label">La communauté</p>
+          <h2 id="comments-title" className="mt-1 flex items-center gap-2 font-display text-2xl font-bold tracking-tight">
+            Réactions
+            {comments.length > 0 && (
+              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold tabular-nums text-ink-2">
+                {comments.length}
+              </span>
+            )}
+          </h2>
+        </div>
 
         {comments.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line-2 px-4 py-6 text-center text-sm text-ink-2">
@@ -171,7 +199,7 @@ export default async function IdeaPage({
                       {timeAgo(c.createdAt)}
                     </time>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{c.body}</p>
+                  <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.body}</p>
                 </div>
               </li>
             ))}
@@ -185,7 +213,7 @@ export default async function IdeaPage({
             <p className="text-sm text-ink-2">
               Un avis, une question, une piste ? Choisis un pseudo et réagis — pas de mot de passe.
             </p>
-            <Link href={loginHref(`/ideas/${idea.id}`)} className="btn btn-primary shrink-0">
+            <Link href={loginHref(`/ideas/${idea.id}`)} className="btn btn-sun shrink-0">
               Réagir
             </Link>
           </div>
