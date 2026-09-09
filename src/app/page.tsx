@@ -7,7 +7,7 @@ import { getSession } from "@/lib/session";
 import { loginHref, plural } from "@/lib/format";
 import { categoryStyle } from "@/lib/categoryColor";
 import { AiTag } from "@/components/AiBadge";
-import BeforeAfter from "@/components/BeforeAfter";
+import Image from "next/image";
 import IdeaCard from "@/components/IdeaCard";
 
 export const dynamic = "force-dynamic";
@@ -252,7 +252,7 @@ export default async function LandingPage() {
           </p>
           <h1 className="mt-4 font-display text-[2.6rem] font-bold leading-[1] tracking-tight sm:text-6xl lg:text-[4.25rem]">
             Ton idée mérite mieux qu&apos;une note dans ton téléphone.{" "}
-            <span className="hl">Dis-la.</span>
+            <span className="hl">Partage-la.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-2">
             Trente secondes à voix haute. L&apos;IA la transforme en fiche notée sur 100, la communauté vote et
@@ -273,7 +273,14 @@ export default async function LandingPage() {
           </div>
           <p className="mt-4 text-xs text-ink-3">Juste un pseudo, pas de mot de passe. Rien à installer.</p>
         </div>
-        <BeforeAfter />
+        <Image
+          src="/hero.jpg"
+          alt="Un entrepreneur parle son idée à voix haute dans son téléphone ; elle se transforme en fiche structurée, notée et illustrée."
+          width={1200}
+          height={896}
+          priority
+          className="w-full rounded-3xl border border-line"
+        />
       </section>
 
       {/* ------------------------------------------------------- Compteurs */}
