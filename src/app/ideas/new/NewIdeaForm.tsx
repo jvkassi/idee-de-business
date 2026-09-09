@@ -44,12 +44,12 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
     return (
       <div className="space-y-4">
         <VoiceRecorder onRecorded={handleRecorded} busyLabel="L'IA transcrit ton idée…" />
-        <p className="text-center text-xs text-ink-3">
-          Tu préfères écrire ?{" "}
-          <button type="button" onClick={() => setMode("manual")} className="font-medium text-ink underline underline-offset-4">
-            Tape ton idée toi-même
+        <div className="flex items-center justify-center gap-3 text-xs text-ink-3">
+          <span>Tu préfères écrire ?</span>
+          <button type="button" onClick={() => setMode("manual")} className="btn btn-outline px-3 py-2 text-xs">
+            Taper mon idée
           </button>
-        </p>
+        </div>
       </div>
     );
   }
@@ -58,10 +58,10 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
     <form action={formAction} className="space-y-6">
       {fromVoice && <input type="hidden" name="audioUrl" value={audioUrl} />}
       {fromVoice && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-sun-soft px-3.5 py-2.5 text-xs">
+        <div className="flex flex-col gap-2 rounded-xl border border-ink bg-sun-soft px-3.5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <span>
-            <strong className="font-semibold">Transcrit depuis ton enregistrement.</strong> Relis et corrige si besoin
-            avant de publier.
+            <strong className="font-semibold">Transcrit depuis ta voix.</strong> Relis, corrige ce qui a été mal
+            entendu, puis publie.
           </span>
           <button
             type="button"
@@ -70,7 +70,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
               setAudioUrl("");
               setMode("voice");
             }}
-            className="shrink-0 font-medium text-ink underline underline-offset-4"
+            className="btn btn-outline shrink-0 px-3 py-2 text-xs"
           >
             Réenregistrer
           </button>

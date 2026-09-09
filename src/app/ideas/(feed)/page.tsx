@@ -143,7 +143,7 @@ export default async function IdeasFeedPage({ searchParams }: { searchParams: Pr
                 key={s.key}
                 href={hrefFor({ sort: s.key })}
                 aria-current={sort === s.key ? "true" : undefined}
-                className={`rounded-lg px-3 py-1.5 font-medium transition-colors ${
+                className={`inline-flex items-center rounded-lg px-3 py-1.5 font-medium transition-colors pointer-coarse:min-h-10 ${
                   sort === s.key ? "bg-ink text-paper" : "text-ink-2 hover:text-ink"
                 }`}
               >

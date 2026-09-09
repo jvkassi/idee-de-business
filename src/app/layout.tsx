@@ -61,18 +61,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               fiche, un vote. Fiches et illustrations générées par Gemini. La communauté a le dernier mot.
             </p>
             <nav aria-label="Pied de page" className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <Link href="/" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
-                Comment ça marche
-              </Link>
-              <Link href="/ideas" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
-                Toutes les idées
-              </Link>
-              <Link href="/faq" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
-                FAQ
-              </Link>
-              <Link href="/ideas/new" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
-                Proposer une idée
-              </Link>
+              {[
+                ["/", "Comment ça marche"],
+                ["/ideas", "Toutes les idées"],
+                ["/faq", "FAQ"],
+                ["/ideas/new", "Proposer une idée"],
+              ].map(([href, label]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="inline-flex items-center py-2.5 text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                >
+                  {label}
+                </Link>
+              ))}
             </nav>
           </div>
         </footer>

@@ -69,6 +69,11 @@ export default async function IdeaPage({
     idea.aiStatus === "pending" || idea.coverStatus === "pending" || idea.kitStatus === "pending";
   const justPublished = sp.new === "1";
   const isOwner = user?.id === idea.authorId;
+  // Le portillon (préciser / lancer / dossier prêt) est la prochaine action de
+  // l'auteur — et le dossier généré est ce que tout visiteur vient voir. Dans
+  // ces cas on le place avant la longue fiche IA ; sinon il reste en dessous,
+  // comme information complémentaire.
+  const gateFirst = isOwner || idea.kitStatus === "done" || idea.kitStatus === "pending";
 
   return (
     <article className="mx-auto max-w-3xl space-y-7" style={categoryStyle(idea.categorySlug)}>
@@ -88,7 +93,7 @@ export default async function IdeaPage({
             <p className="font-semibold">C&apos;est publié.</p>
             <p className="text-ink-2">
               {processing
-                ? "Ta fiche s'écrit et ton illustration se dessine (~30 s). Pas besoin de rafraîchir, ça apparaît ici."
+                ? "Ta fiche s'écrit et ton illustration se dessine (~30 s). Pas besoin de rafraîchir, ça apparaît ici — et si tu fermes la page, tout sera là à ton retour."
                 : "Fiche et illustration terminées. Partage-la pour récolter des votes."}
             </p>
           </div>
@@ -100,7 +105,7 @@ export default async function IdeaPage({
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-ink-3">
           <Link
             href={`/ideas?cat=${idea.categorySlug}`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-cat underline-offset-4 hover:underline"
+            className="-my-2 inline-flex items-center gap-1.5 py-2 text-xs font-semibold text-cat underline-offset-4 hover:underline"
           >
             <span className="cat-dot" aria-hidden />
             {idea.categoryName}
@@ -172,21 +177,24 @@ export default async function IdeaPage({
           {idea.pitch}
         </p>
         {idea.audioUrl && (
-          <div className="mt-3 flex items-center gap-2 pl-4">
+          <div className="mt-3 flex flex-col gap-1.5 pl-4 sm:flex-row sm:items-center sm:gap-2">
             <span className="text-xs text-ink-3">Note vocale d&apos;origine :</span>
-            <audio controls src={idea.audioUrl} className="h-9 max-w-xs flex-1" />
+            <audio controls preload="none" src={idea.audioUrl} className="h-10 w-full max-w-xs" />
           </div>
         )}
       </section>
 
-      {/* Les deux verdicts, côte à côte — épinglés pour rester à portée pendant la lecture/les réactions */}
+      {/* Les deux verdicts, côte à côte, puis les actions secondaires — épinglés pour rester à portée pendant la lecture/les réactions */}
       <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 border-y border-line bg-paper py-3 sm:top-16">
         <VoteButton ideaId={idea.id} votes={idea.votes} voted={idea.voted} loggedIn={!!user} />
-        <span className="inline-flex h-10 items-center rounded-xl border border-line px-3">
+        <span className="inline-flex h-10 items-center rounded-xl border border-line px-3 pointer-coarse:h-11">
           <AiBadge status={idea.aiStatus} score={idea.aiScore} />
         </span>
-        <span className="ml-auto flex items-center gap-2">
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <a href="#commentaires" className="btn btn-outline px-3 py-2 text-xs">
+            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+              <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5v-6Z" strokeLinejoin="round" />
+            </svg>
             {plural(comments.length, "réaction")}
           </a>
           <ForkButton ideaId={idea.id} forkCount={idea.forkCount} />
@@ -194,8 +202,9 @@ export default async function IdeaPage({
         </span>
       </div>
 
+      {gateFirst && <ValidationGate idea={idea} isOwner={isOwner} />}
       <AiPanel idea={idea} />
-      <ValidationGate idea={idea} isOwner={isOwner} />
+      {!gateFirst && <ValidationGate idea={idea} isOwner={isOwner} />}
 
       {/* Réactions : la communauté */}
       <section id="commentaires" aria-labelledby="comments-title" className="scroll-mt-20 space-y-4">
@@ -230,7 +239,7 @@ export default async function IdeaPage({
                   </div>
                   <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.body}</p>
                   {c.audioUrl && (
-                    <audio controls src={c.audioUrl} className="mt-2 h-9 w-full max-w-xs" />
+                    <audio controls preload="none" src={c.audioUrl} className="mt-2 h-10 w-full max-w-xs" />
                   )}
                 </div>
               </li>

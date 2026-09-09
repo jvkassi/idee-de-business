@@ -103,7 +103,7 @@ export default function PushBell() {
             : "Activer les notifications (réactions, votes, seuil atteint, dossier prêt)"
       }
       aria-label={on ? "Désactiver les notifications" : "Activer les notifications"}
-      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors ${
+      className={`icon-btn ${
         on ? "bg-sun-soft text-ink" : "text-ink-3 hover:bg-surface-2 hover:text-ink"
       } ${denied ? "cursor-not-allowed opacity-40" : ""}`}
     >

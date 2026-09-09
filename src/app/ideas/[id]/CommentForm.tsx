@@ -38,7 +38,7 @@ export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo
           <VoiceRecorder
             minSeconds={0}
             compact
-            idleTitle="Enregistre ta réaction"
+            idleTitle="Enregistrer ma réaction"
             busyLabel="Transcription du commentaire…"
             onRecorded={handleVoiceComment}
             onCancel={() => setVoiceMode(false)}
@@ -59,24 +59,24 @@ export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo
               placeholder="Ton avis, une question, une piste pour aller plus loin…"
               className="input resize-y"
             />
+            {state?.error && (
+              <p className="text-xs text-bad" role="alert">
+                {state.error}
+              </p>
+            )}
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-bad" role="alert">
-                  {state?.error}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setVoiceMode(true)}
-                  className="btn btn-ghost px-2.5 py-1.5 text-xs"
-                  title="Réagir à voix haute"
-                >
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-                    <rect x="6" y="1.5" width="4" height="8" rx="2" />
-                    <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0h-1.3a3.2 3.2 0 0 1-6.4 0Zm4.5 6v1.3H6.6v1.2h2.8v-1.2H8Z" />
-                  </svg>
-                  Vocal
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setVoiceMode(true)}
+                className="btn btn-outline px-3 py-2 text-xs"
+                title="Réagir à voix haute"
+              >
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                  <rect x="6" y="1.5" width="4" height="8" rx="2" />
+                  <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0h-1.3a3.2 3.2 0 0 1-6.4 0Zm4.5 6v1.3H6.6v1.2h2.8v-1.2H8Z" />
+                </svg>
+                Réagir en vocal
+              </button>
               <button type="submit" disabled={pending} className="btn btn-sun px-4 py-2">
                 {pending ? "Envoi…" : "Réagir"}
               </button>

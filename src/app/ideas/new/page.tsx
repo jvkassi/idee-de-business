@@ -31,8 +31,8 @@ export default async function NewIdeaPage() {
           Raconte-la, <span className="hl">à voix haute.</span>
         </h1>
         <p className="mt-3 text-[15px] text-ink-2">
-          Pas besoin de business plan. Décris ton idée comme tu la raconterais à un ami — 30 secondes minimum,
-          sois précis et verbeux : plus tu donnes de détails, meilleure sera l&apos;analyse.
+          Pas besoin de business plan : décris ton idée comme tu la raconterais à un ami. Tu pourras relire et
+          corriger le texte avant de publier.
         </p>
         <div className="mt-7">
           <NewIdeaForm categories={categories} />

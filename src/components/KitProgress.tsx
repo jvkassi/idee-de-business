@@ -36,15 +36,28 @@ export default function KitProgress({ realStep }: { realStep: number }) {
   }, []);
 
   const current = Math.min(tick, ceiling);
+  const pct = Math.round(((current - 1) / STEPS.length) * 100);
 
   return (
-    <section className="card space-y-4 p-5 sm:p-6" aria-live="polite" aria-label="Génération du dossier de démarrage en cours">
-      <div className="flex items-center gap-3">
-        <svg className="h-5 w-5 shrink-0 animate-spin text-ink-2" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-          <path d="M10 3a7 7 0 1 1-7 7" strokeLinecap="round" />
-        </svg>
-        <p className="text-sm font-medium">Le dossier de démarrage se prépare (jusqu&apos;à ~3 min)…</p>
+    <section className="card space-y-4 border-ink p-5 sm:p-6" aria-live="polite" aria-label="Génération du dossier de démarrage en cours">
+      <div>
+        <p className="label">Dossier de démarrage</p>
+        <div className="mt-1 flex items-center gap-3">
+          <svg className="h-5 w-5 shrink-0 animate-spin text-ink-2" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+            <path d="M10 3a7 7 0 1 1-7 7" strokeLinecap="round" />
+          </svg>
+          <h3 className="font-display text-xl font-bold leading-snug">Ton dossier se prépare</h3>
+        </div>
+        <p className="mt-1.5 text-sm text-ink-2">
+          Jusqu&apos;à 3 minutes. Tu peux fermer cette page : le dossier restera ici, et la page se met à jour toute
+          seule si tu attends.
+        </p>
       </div>
+
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" aria-hidden>
+        <div className="h-full rounded-full bg-sun transition-[width] duration-700" style={{ width: `${Math.max(4, pct)}%` }} />
+      </div>
+
       <ul className="space-y-1.5">
         {STEPS.map((label, i) => {
           const stepNo = i + 1;

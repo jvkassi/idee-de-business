@@ -64,7 +64,8 @@ export default function ForkButton({ ideaId, forkCount }: { ideaId: number; fork
         <rect x="7.5" y="2.5" width="5" height="8" rx="2.5" />
         <path d="M5 9.5a5 5 0 0 0 10 0M10 14.5v3M7.5 17.5h5" strokeLinecap="round" />
       </svg>
-      Faire ma version
+      <span className="hidden sm:inline">Faire ma version</span>
+      <span className="sm:hidden">Ma version</span>
       {forkCount > 0 && <span className="tabular-nums text-ink-3">{forkCount}</span>}
     </button>
   );

@@ -117,8 +117,10 @@ body {
   @apply rounded-2xl border border-line bg-surface;
 }
 
+/* Sur écran tactile, aucune cible en dessous de 44 px de haut, quelle que
+   soit la taille de texte demandée : le padding suit, pas la typo. */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60;
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60 pointer-coarse:min-h-11;
 }
 
 /* L'action humaine : soleil + encre. */
@@ -143,7 +145,13 @@ body {
 }
 
 @utility chip {
-  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink;
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink pointer-coarse:min-h-10;
+}
+
+/* Bouton icône rond (cloche, déconnexion, fermer) : 36 px partout, 44 px au
+   doigt. */
+@utility icon-btn {
+  @apply grid h-9 w-9 shrink-0 place-items-center rounded-full transition-colors pointer-coarse:h-10 pointer-coarse:w-10;
 }
 
 @utility chip-active {
@@ -172,6 +180,27 @@ body {
    n'importe quoi (ou manquer), le cadre reste le même. */
 @utility mat {
   background: color-mix(in oklab, var(--cat) 14%, white);
+}
+
+/* Carte du fil. Sur mobile, la vignette est petite et le titre prend toute
+   la largeur restante ; le rail des verdicts (vote, note) descend sous le
+   texte en ligne. À partir de sm, la vignette grandit et le rail remonte en
+   colonne à droite, comme sur un fil desktop classique. */
+@utility idea-grid {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  grid-template-areas:
+    "thumb head"
+    "body body"
+    "rail rail";
+  column-gap: 0.75rem;
+  @media (width >= 40rem) {
+    grid-template-columns: 10rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "thumb head rail"
+      "thumb body rail";
+    column-gap: 1rem;
+  }
 }
 
 @utility skeleton {
