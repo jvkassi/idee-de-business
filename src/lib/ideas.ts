@@ -173,6 +173,61 @@ export async function listIdeas(opts: {
   return rows.map((r) => rowToListItem(r as Record<string, unknown>));
 }
 
+/**
+ * Les idées à mettre en avant sur la page d'accueil : analysées, de
+ * préférence illustrées, les plus soutenues d'abord. Preuve sociale réelle,
+ * pas des exemples inventés.
+ */
+export async function listFeaturedIdeas(limit = 3): Promise<IdeaListItem[]> {
+  await ready();
+  const rows = await query(
+    `${LIST_SELECT}
+     WHERE i.ai_status = 'done'
+     ORDER BY (i.cover_image IS NULL), votes DESC, i.ai_score DESC NULLS LAST, i.created_at DESC
+     LIMIT $2`,
+    [-1, limit],
+  );
+  return rows.map((r) => rowToListItem(r as Record<string, unknown>));
+}
+
+export type SiteStats = {
+  ideas: number;
+  votes: number;
+  comments: number;
+  users: number;
+  /** Idées ayant atteint le seuil du starter kit. */
+  validated: number;
+  /** Starter kits effectivement générés. */
+  kits: number;
+  forks: number;
+};
+
+/** Compteurs globaux affichés sur la page d'accueil (une seule requête). */
+export async function getSiteStats(): Promise<SiteStats> {
+  await ready();
+  const rows = await query<Record<string, unknown>>(
+    `SELECT
+       (SELECT COUNT(*) FROM ideas) AS ideas,
+       (SELECT COUNT(*) FROM votes) AS votes,
+       (SELECT COUNT(*) FROM comments) AS comments,
+       (SELECT COUNT(*) FROM users) AS users,
+       (SELECT COUNT(*) FROM ideas WHERE ai_score >= $1) AS validated,
+       (SELECT COUNT(*) FROM ideas WHERE kit_status = 'done') AS kits,
+       (SELECT COUNT(*) FROM ideas WHERE parent_idea_id IS NOT NULL) AS forks`,
+    [KIT_SCORE_THRESHOLD],
+  );
+  const r = rows[0] ?? {};
+  return {
+    ideas: Number(r.ideas ?? 0),
+    votes: Number(r.votes ?? 0),
+    comments: Number(r.comments ?? 0),
+    users: Number(r.users ?? 0),
+    validated: Number(r.validated ?? 0),
+    kits: Number(r.kits ?? 0),
+    forks: Number(r.forks ?? 0),
+  };
+}
+
 export async function getIdea(id: number, viewerId?: number): Promise<IdeaDetail | null> {
   await ready();
   const rows = await query(`${LIST_SELECT} WHERE i.id = $2`, [viewerId ?? -1, id]);

@@ -63,6 +63,7 @@ export async function createIdeaAction(_prev: FormState, formData: FormData): Pr
 
   const id = await createIdea({ title, pitch, categorySlug, authorId: user.id, audioUrl: audioUrl || null });
   revalidatePath("/");
+  revalidatePath("/ideas");
   // ?new=1 : la page de l'idée affiche la bannière "publiée, l'IA travaille".
   redirect(`/ideas/${id}?new=1`);
 }
@@ -172,6 +173,7 @@ export async function forkIdeaAction(ideaId: number): Promise<void> {
   if (!user) redirect(loginHref(`/ideas/${ideaId}`));
   const newId = await forkIdea(ideaId, user.id);
   revalidatePath("/");
+  revalidatePath("/ideas");
   redirect(`/ideas/${newId}?new=1`);
 }
 
@@ -189,6 +191,7 @@ export async function addCommentAction(_prev: FormState, formData: FormData): Pr
   await addComment(ideaId, user.id, body);
   revalidatePath(`/ideas/${ideaId}`);
   revalidatePath("/");
+  revalidatePath("/ideas");
   return {};
 }
 
@@ -227,6 +230,7 @@ export async function voteAction(ideaId: number): Promise<void> {
   await toggleVote(ideaId, user.id);
   revalidatePath(`/ideas/${ideaId}`);
   revalidatePath("/");
+  revalidatePath("/ideas");
 }
 
 export async function retryAiAction(ideaId: number): Promise<void> {

@@ -53,17 +53,25 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <Header user={user} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">{children}</main>
         <footer className="border-t border-line py-8">
-          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
             <p>
               <span className="font-display font-bold text-ink-2">Idées de Business</span> — une idée brute, une
-              fiche, un vote.
+              fiche, un vote. Fiches et illustrations générées par Gemini. La communauté a le dernier mot.
             </p>
-            <p>
-              Fiches et illustrations générées par Gemini. La communauté a le dernier mot. ·{" "}
+            <nav aria-label="Pied de page" className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href="/" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
+                Comment ça marche
+              </Link>
+              <Link href="/ideas" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
+                Toutes les idées
+              </Link>
+              <Link href="/faq" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
+                FAQ
+              </Link>
               <Link href="/ideas/new" className="text-ink-2 underline-offset-4 hover:text-ink hover:underline">
                 Proposer une idée
               </Link>
-            </p>
+            </nav>
           </div>
         </footer>
       </body>

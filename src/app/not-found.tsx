@@ -13,7 +13,7 @@ export default function NotFound() {
         attendent ton avis.
       </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <Link href="/" className="btn btn-sun">
+        <Link href="/ideas" className="btn btn-sun">
           Explorer les idées
         </Link>
         <Link href="/ideas/new" className="btn btn-outline">

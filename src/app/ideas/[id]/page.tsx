@@ -98,7 +98,7 @@ export default async function IdeaPage({
       <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-ink-3">
           <Link
-            href={`/?cat=${idea.categorySlug}`}
+            href={`/ideas?cat=${idea.categorySlug}`}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-cat underline-offset-4 hover:underline"
           >
             <span className="cat-dot" aria-hidden />
