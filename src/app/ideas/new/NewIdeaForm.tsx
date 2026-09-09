@@ -1,9 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createIdeaAction, type FormState } from "@/app/actions";
+import { createIdeaAction, transcribeIdeaAudioAction, type FormState } from "@/app/actions";
 import type { Category } from "@/lib/ideas";
-import type { VoiceIdeaDraft } from "@/lib/gemini";
 import { categoryStyle } from "@/lib/categoryColor";
 import VoiceRecorder from "@/components/VoiceRecorder";
 
@@ -25,19 +24,26 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
   const [pitch, setPitch] = useState("");
   const [categorySlug, setCategorySlug] = useState("");
   const [fromVoice, setFromVoice] = useState(false);
+  const [audioUrl, setAudioUrl] = useState("");
 
-  function handleTranscribed(draft: VoiceIdeaDraft) {
-    setTitle(draft.suggestedTitle || title);
-    setPitch(draft.transcript);
-    setCategorySlug(draft.suggestedCategorySlug || categorySlug);
+  async function handleRecorded(blob: Blob) {
+    const formData = new FormData();
+    formData.append("audio", blob, `idee.${blob.type.includes("mp4") ? "m4a" : "webm"}`);
+    const result = await transcribeIdeaAudioAction(formData);
+    if (!result.ok) return { ok: false, error: result.error };
+    setTitle(result.suggestedTitle || title);
+    setPitch(result.transcript);
+    setCategorySlug(result.suggestedCategorySlug || categorySlug);
+    setAudioUrl(result.audioUrl);
     setFromVoice(true);
     setMode("manual");
+    return { ok: true };
   }
 
   if (mode === "voice") {
     return (
       <div className="space-y-4">
-        <VoiceRecorder onTranscribed={handleTranscribed} />
+        <VoiceRecorder onRecorded={handleRecorded} busyLabel="L'IA transcrit ton idée…" />
         <p className="text-center text-xs text-ink-3">
           Tu préfères écrire ?{" "}
           <button type="button" onClick={() => setMode("manual")} className="font-medium text-ink underline underline-offset-4">
@@ -50,6 +56,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
 
   return (
     <form action={formAction} className="space-y-6">
+      {fromVoice && <input type="hidden" name="audioUrl" value={audioUrl} />}
       {fromVoice && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-sun-soft px-3.5 py-2.5 text-xs">
           <span>
@@ -60,6 +67,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
             type="button"
             onClick={() => {
               setFromVoice(false);
+              setAudioUrl("");
               setMode("voice");
             }}
             className="shrink-0 font-medium text-ink underline underline-offset-4"

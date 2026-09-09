@@ -38,6 +38,8 @@ const SCHEMA = `
     pitch TEXT NOT NULL,
     category_id INTEGER NOT NULL REFERENCES categories(id),
     author_id INTEGER NOT NULL REFERENCES users(id),
+    parent_idea_id INTEGER REFERENCES ideas(id),
+    audio_url TEXT,
     ai_status TEXT NOT NULL DEFAULT 'pending',
     ai_json TEXT,
     ai_score INTEGER,
@@ -45,6 +47,10 @@ const SCHEMA = `
     cover_status TEXT NOT NULL DEFAULT 'pending',
     cover_image TEXT,
     cover_error TEXT,
+    kit_status TEXT NOT NULL DEFAULT 'none',
+    kit_json TEXT,
+    kit_flyer_image TEXT,
+    kit_error TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_ideas_category ON ideas(category_id);
@@ -55,6 +61,7 @@ const SCHEMA = `
     idea_id INTEGER NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
     author_id INTEGER NOT NULL REFERENCES users(id),
     body TEXT NOT NULL,
+    audio_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_comments_idea ON comments(idea_id);
@@ -79,8 +86,25 @@ function makeConnectionString(): string {
   return url;
 }
 
+// Migrations best-effort pour une base déjà créée avant l'ajout de ces
+// colonnes (fork, notes vocales, starter kit). IF NOT EXISTS les rend
+// idempotentes : sans effet sur une base déjà à jour ou fraîchement créée.
+const MIGRATIONS = [
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS parent_idea_id INTEGER REFERENCES ideas(id)",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS audio_url TEXT",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_status TEXT NOT NULL DEFAULT 'none'",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_json TEXT",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_flyer_image TEXT",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_error TEXT",
+  "ALTER TABLE comments ADD COLUMN IF NOT EXISTS audio_url TEXT",
+  "CREATE INDEX IF NOT EXISTS idx_ideas_parent ON ideas(parent_idea_id)",
+];
+
 async function init(pool: Pool) {
   for (const stmt of SCHEMA.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await pool.query(stmt);
+  }
+  for (const stmt of MIGRATIONS) {
     await pool.query(stmt);
   }
   for (const [slug, name, emoji] of CATEGORIES) {

@@ -14,6 +14,8 @@ import AutoRefresh from "@/components/AutoRefresh";
 import CoverImage from "@/components/CoverImage";
 import RetryButton from "@/components/RetryButton";
 import ShareButton from "@/components/ShareButton";
+import ForkButton from "@/components/ForkButton";
+import ValidationGate from "@/components/ValidationGate";
 import CommentForm from "./CommentForm";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +63,10 @@ export default async function IdeaPage({
   const [idea, comments] = await Promise.all([getIdea(ideaId, user?.id), getComments(ideaId)]);
   if (!idea) notFound();
 
-  const processing = idea.aiStatus === "pending" || idea.coverStatus === "pending";
+  const processing =
+    idea.aiStatus === "pending" || idea.coverStatus === "pending" || idea.kitStatus === "pending";
   const justPublished = sp.new === "1";
+  const isOwner = user?.id === idea.authorId;
 
   return (
     <article className="mx-auto max-w-3xl space-y-7" style={categoryStyle(idea.categorySlug)}>
@@ -111,6 +115,16 @@ export default async function IdeaPage({
         </div>
 
         <h1 className="font-display text-3xl font-bold leading-[1.08] tracking-tight sm:text-[2.75rem]">{idea.title}</h1>
+
+        {idea.parentIdea && (
+          <p className="text-xs text-ink-3">
+            Forké depuis{" "}
+            <Link href={`/ideas/${idea.parentIdea.id}`} className="font-medium text-ink underline-offset-4 hover:underline">
+              {idea.parentIdea.title}
+            </Link>{" "}
+            de @{idea.parentIdea.authorPseudo}
+          </p>
+        )}
       </header>
 
       {/* Illustration dans son passe-partout — le cadre tient, quoi que dessine la machine */}
@@ -150,6 +164,12 @@ export default async function IdeaPage({
         <p className="whitespace-pre-wrap border-l-[3px] border-sun pl-4 font-display text-lg leading-relaxed text-ink sm:text-xl">
           {idea.pitch}
         </p>
+        {idea.audioUrl && (
+          <div className="mt-3 flex items-center gap-2 pl-4">
+            <span className="text-xs text-ink-3">Note vocale d&apos;origine :</span>
+            <audio controls src={idea.audioUrl} className="h-9 max-w-xs flex-1" />
+          </div>
+        )}
       </section>
 
       {/* Les deux verdicts, côte à côte */}
@@ -162,11 +182,13 @@ export default async function IdeaPage({
           <a href="#commentaires" className="btn btn-outline px-3 py-2 text-xs">
             {plural(comments.length, "réaction")}
           </a>
+          <ForkButton ideaId={idea.id} forkCount={idea.forkCount} />
           <ShareButton title={idea.title} />
         </span>
       </div>
 
       <AiPanel idea={idea} />
+      <ValidationGate idea={idea} isOwner={isOwner} />
 
       {/* Réactions : la communauté */}
       <section id="commentaires" aria-labelledby="comments-title" className="scroll-mt-20 space-y-4">
@@ -200,6 +222,9 @@ export default async function IdeaPage({
                     </time>
                   </div>
                   <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.body}</p>
+                  {c.audioUrl && (
+                    <audio controls src={c.audioUrl} className="mt-2 h-9 w-full max-w-xs" />
+                  )}
                 </div>
               </li>
             ))}
