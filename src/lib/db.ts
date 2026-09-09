@@ -3,20 +3,17 @@ import { Pool, type QueryResultRow } from "@neondatabase/serverless";
 // Une seule connexion partagée (le HMR de Next recharge les modules).
 const globalForDb = globalThis as unknown as { __ideasPool?: Pool; __ideasDbReady?: Promise<void> };
 
+// Volontairement resserré (14 -> 8) : trop de catégories noyait le rail de
+// puces et forçait un choix difficile au moment de publier. "Autre" reste
+// en secours pour tout ce qui ne rentre pas ailleurs.
 const CATEGORIES: Array<[slug: string, name: string, emoji: string]> = [
   ["tech", "Tech & Apps", "💻"],
-  ["agro", "Agro & Alimentation", "🌾"],
   ["commerce", "Commerce & Retail", "🛍️"],
+  ["agro", "Agro & Alimentation", "🌾"],
   ["fintech", "Finance & Fintech", "💳"],
-  ["education", "Éducation & Formation", "🎓"],
   ["sante", "Santé & Bien-être", "🩺"],
-  ["transport", "Transport & Logistique", "🚚"],
-  ["immobilier", "Immobilier & BTP", "🏗️"],
-  ["energie", "Énergie & Environnement", "⚡"],
-  ["services", "Services aux entreprises", "🧰"],
-  ["media", "Médias & Divertissement", "🎬"],
+  ["education", "Éducation & Formation", "🎓"],
   ["mode", "Mode & Beauté", "👗"],
-  ["tourisme", "Tourisme & Hôtellerie", "🧳"],
   ["autre", "Autre", "💡"],
 ];
 
@@ -92,6 +89,16 @@ async function init(pool: Pool) {
       [slug, name, emoji],
     );
   }
+  // Retire les catégories qui ne sont plus dans la liste ci-dessus, mais
+  // seulement si elles n'ont aucune idée rattachée : on resserre la liste
+  // sans jamais casser une idée déjà publiée.
+  const keepSlugs = CATEGORIES.map(([slug]) => slug);
+  await pool.query(
+    `DELETE FROM categories
+     WHERE slug <> ALL($1)
+       AND id NOT IN (SELECT DISTINCT category_id FROM ideas)`,
+    [keepSlugs],
+  );
 }
 
 function getPool(): Pool {

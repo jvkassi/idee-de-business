@@ -8,7 +8,7 @@ import Logo from "@/components/Logo";
 export default function Header({ user }: { user: SessionUser | null }) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/80">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 sm:h-16">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16">
         <Link href="/" className="flex items-center gap-2.5 rounded-lg" aria-label="Idées de Business — accueil">
           <Logo className="h-8 w-8" />
           <span className="font-display text-lg font-bold tracking-tight">
