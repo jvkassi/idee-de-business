@@ -3,8 +3,10 @@ import { put, del } from "@vercel/blob";
 import { query, ready } from "./db";
 import { KIT_SCORE_THRESHOLD } from "./constants";
 import { notifyUser } from "./push";
+import { checkIpRateLimit } from "./rateLimit";
 import {
   improveIdea,
+  embedText,
   generateCoverImage,
   generateFlyerImage,
   generateStarterKit,
@@ -145,15 +147,60 @@ function rowToListItem(r: Record<string, unknown>): IdeaListItem {
 
 export type SortOrder = "recent" | "top" | "score";
 
+/**
+ * Recherche sémantique : la requête est transformée en vecteur puis
+ * comparée à celui de chaque idée (cosine, opérateur pgvector `<=>`) — une
+ * recherche "manger moins cher à Abidjan" retrouve une idée qui parle de
+ * "paniers de légumes invendus" sans partager un seul mot avec la requête,
+ * ce qu'un ILIKE sur le texte brut ne peut pas faire. Idées pas encore
+ * indexées (embedding NULL) atterrissent en fin de liste, jamais en erreur.
+ */
+async function searchIdeasSemantic(
+  search: string,
+  categorySlug: string | undefined,
+  viewerId: number,
+): Promise<IdeaListItem[]> {
+  const values = await embedText(search, "RETRIEVAL_QUERY");
+  const vector = `[${values.join(",")}]`;
+  const args: (string | number)[] = [viewerId, vector];
+  let where = "";
+  if (categorySlug) {
+    args.push(categorySlug);
+    where = `WHERE c.slug = $${args.length}`;
+  }
+  const rows = await query(
+    `${LIST_SELECT} ${where} ORDER BY i.embedding <=> $2::vector ASC LIMIT 100`,
+    args,
+  );
+  return rows.map((r) => rowToListItem(r as Record<string, unknown>));
+}
+
 export async function listIdeas(opts: {
   categorySlug?: string;
   search?: string;
   sort?: SortOrder;
   viewerId?: number;
+  /** IP du visiteur, pour limiter le coût de la recherche sémantique (accessible sans compte). */
+  clientIp?: string;
 }): Promise<IdeaListItem[]> {
   await ready();
+  const viewerId = opts.viewerId ?? -1;
+
+  if (opts.search) {
+    const limit = opts.clientIp ? await checkIpRateLimit(opts.clientIp, "search", 30, 60) : { ok: true as const };
+    if (limit.ok) {
+      try {
+        return await searchIdeasSemantic(opts.search, opts.categorySlug, viewerId);
+      } catch (err) {
+        console.error("[semantic-search] repli sur la recherche texte", err);
+        // Repli texte simple si l'API d'embedding est indisponible — la
+        // recherche reste utilisable, juste moins fine ce jour-là.
+      }
+    }
+  }
+
   const conds: string[] = [];
-  const args: (string | number)[] = [opts.viewerId ?? -1];
+  const args: (string | number)[] = [viewerId];
   if (opts.categorySlug) {
     args.push(opts.categorySlug);
     conds.push(`c.slug = $${args.length}`);
@@ -441,6 +488,20 @@ export async function deleteIdea(id: number, requesterId: number): Promise<{ ok:
   return { ok: true };
 }
 
+/**
+ * Vecteur sémantique pour la recherche (titre + pitch). Échec silencieux :
+ * l'idée reste consultable, juste absente des résultats de recherche
+ * sémantique jusqu'à la prochaine tentative (nouvelle analyse ou retry).
+ */
+async function updateIdeaEmbedding(id: number, title: string, pitch: string) {
+  try {
+    const values = await embedText(`${title}\n${pitch}`, "RETRIEVAL_DOCUMENT");
+    await query("UPDATE ideas SET embedding = $1::vector WHERE id = $2", [`[${values.join(",")}]`, id]);
+  } catch (err) {
+    console.error("[gemini:embedding]", "idea", id, err);
+  }
+}
+
 async function runAiImprovement(id: number, title: string, pitch: string, authorId: number) {
   try {
     const improved = await improveIdea(title, pitch);
@@ -448,6 +509,7 @@ async function runAiImprovement(id: number, title: string, pitch: string, author
       "UPDATE ideas SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_error = NULL WHERE id = $3",
       [JSON.stringify(improved), improved.score, id],
     );
+    after(() => updateIdeaEmbedding(id, title, pitch));
     if (improved.score >= KIT_SCORE_THRESHOLD) {
       after(() =>
         notifyUser(authorId, {

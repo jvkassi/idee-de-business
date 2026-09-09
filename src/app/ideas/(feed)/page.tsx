@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getCategories, listIdeas, type SortOrder } from "@/lib/ideas";
 import { getSession } from "@/lib/session";
 import { loginHref, plural } from "@/lib/format";
@@ -28,13 +29,16 @@ const SORTS: { key: SortOrder; label: string; short: string }[] = [
  * vendre, ici on la pratique.
  */
 export default async function IdeasFeedPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [sp, user] = await Promise.all([searchParams, getSession()]);
+  const [sp, user, h] = await Promise.all([searchParams, getSession(), headers()]);
   const sort: SortOrder = SORTS.some((s) => s.key === sp.sort) ? (sp.sort as SortOrder) : "recent";
   const q = sp.q?.trim() || undefined;
+  // La recherche sémantique coûte un appel Gemini par requête et reste
+  // accessible sans compte : limitée par IP, pas par utilisateur.
+  const clientIp = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 
   const [categories, ideas] = await Promise.all([
     getCategories(),
-    listIdeas({ categorySlug: sp.cat, search: q, sort, viewerId: user?.id }),
+    listIdeas({ categorySlug: sp.cat, search: q, sort, viewerId: user?.id, clientIp }),
   ]);
   const activeCategory = categories.find((c) => c.slug === sp.cat);
   const filtered = Boolean(q || activeCategory);

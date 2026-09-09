@@ -8,6 +8,11 @@ const TEXT_MODEL = process.env.IDEAS_TEXT_MODEL || "gemini-3.5-flash";
 // IDEAS_TEXT_MODEL) car c'est une tâche différente.
 const AUDIO_MODEL = process.env.IDEAS_AUDIO_MODEL || "gemini-flash-latest";
 const IMAGE_MODEL = process.env.IDEAS_IMAGE_MODEL || "gemini-3.1-flash-image";
+const EMBEDDING_MODEL = process.env.IDEAS_EMBEDDING_MODEL || "gemini-embedding-001";
+// Dimension fixe pour la colonne pgvector : gemini-embedding-001 accepte
+// outputDimensionality pour raccourcir son vecteur natif (3072) à une
+// taille qui reste rapide à indexer/comparer pour le volume d'idées visé.
+const EMBEDDING_DIMENSIONS = 768;
 
 const IVORY_COAST_CONTEXT = `Contexte : marché ivoirien et ouest-africain (Abidjan et
 l'intérieur du pays). Ancre toute analyse dans les réalités locales, pas des
@@ -93,6 +98,36 @@ async function callGeminiImage(
     if (inline?.data && inline.mimeType) return { mimeType: inline.mimeType, base64: inline.data };
   }
   throw new Error("Aucune image retournée par Gemini");
+}
+
+/**
+ * Vecteur sémantique d'un texte (titre + pitch d'une idée, ou requête de
+ * recherche) : deux idées qui parlent de la même chose avec des mots
+ * différents finissent proches dans cet espace, contrairement à un simple
+ * ILIKE sur le texte brut.
+ */
+export async function embedText(text: string, taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY"): Promise<number[]> {
+  const apiKey = apiKeyOrThrow();
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: { parts: [{ text }] },
+        taskType,
+        outputDimensionality: EMBEDDING_DIMENSIONS,
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Gemini embedding API error ${res.status}: ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const values: number[] | undefined = data?.embedding?.values;
+  if (!values || values.length === 0) throw new Error("Aucun embedding retourné par Gemini");
+  return values;
 }
 
 export type IdeaImprovement = {

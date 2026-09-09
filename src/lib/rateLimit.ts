@@ -32,6 +32,25 @@ export async function checkRateLimit(
   return { ok: true };
 }
 
+/**
+ * Même principe que checkRateLimit, mais par IP : la recherche sémantique
+ * est accessible sans compte, donc pas de userId à qui l'accrocher.
+ */
+export async function checkIpRateLimit(ip: string, action: string, max: number, windowMinutes: number): Promise<RateLimitResult> {
+  await ready();
+  const rows = await query<{ count: string }>(
+    `SELECT COUNT(*)::int AS count FROM search_events
+     WHERE ip = $1 AND created_at > now() - ($2 || ' minutes')::interval`,
+    [ip, windowMinutes],
+  );
+  if (Number(rows[0]?.count ?? 0) >= max) {
+    console.warn("[rate-limit]", action, "blocked ip", ip, `(${max}/${windowMinutes}min)`);
+    return { ok: false, error: `Limite atteinte (${max} par ${formatWindow(windowMinutes)}).` };
+  }
+  await query("INSERT INTO search_events (ip) VALUES ($1)", [ip]);
+  return { ok: true };
+}
+
 export const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 
 export function checkAudioSize(size: number): RateLimitResult {

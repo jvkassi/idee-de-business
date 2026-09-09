@@ -18,6 +18,8 @@ const CATEGORIES: Array<[slug: string, name: string, emoji: string]> = [
 ];
 
 const SCHEMA = `
+  CREATE EXTENSION IF NOT EXISTS vector;
+
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     pseudo TEXT NOT NULL,
@@ -52,6 +54,7 @@ const SCHEMA = `
     kit_json TEXT,
     kit_flyer_image TEXT,
     kit_error TEXT,
+    embedding vector(768),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_ideas_category ON ideas(category_id);
@@ -96,6 +99,15 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+  -- La recherche sémantique coûte un appel Gemini (embedding) et reste
+  -- accessible sans compte : compteur par IP, pas par utilisateur.
+  CREATE TABLE IF NOT EXISTS search_events (
+    id SERIAL PRIMARY KEY,
+    ip TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_search_events_lookup ON search_events(ip, created_at);
 `;
 
 function makeConnectionString(): string {
@@ -114,6 +126,8 @@ function makeConnectionString(): string {
 // colonnes (fork, notes vocales, starter kit). IF NOT EXISTS les rend
 // idempotentes : sans effet sur une base déjà à jour ou fraîchement créée.
 const MIGRATIONS = [
+  // Doit rester en premier : les colonnes vector() ci-dessous en dépendent.
+  "CREATE EXTENSION IF NOT EXISTS vector",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS parent_idea_id INTEGER REFERENCES ideas(id)",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS audio_url TEXT",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_status TEXT NOT NULL DEFAULT 'none'",
@@ -121,6 +135,7 @@ const MIGRATIONS = [
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_flyer_image TEXT",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_error TEXT",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_step INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS embedding vector(768)",
   "ALTER TABLE comments ADD COLUMN IF NOT EXISTS audio_url TEXT",
   "CREATE INDEX IF NOT EXISTS idx_ideas_parent ON ideas(parent_idea_id)",
 ];
