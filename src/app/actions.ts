@@ -25,6 +25,7 @@ import {
 } from "@/lib/ideas";
 import { loginHref, safeNext } from "@/lib/format";
 import { transcribeIdeaAudio, transcribeShortAudio, type VoiceIdeaDraft } from "@/lib/gemini";
+import { checkAudioSize, checkRateLimit } from "@/lib/rateLimit";
 
 export type FormState = { error?: string } | undefined;
 
@@ -61,6 +62,9 @@ export async function createIdeaAction(_prev: FormState, formData: FormData): Pr
     return { error: "Choisis une catégorie." };
   }
 
+  const limit = await checkRateLimit(user.id, "create_idea", 5, 60);
+  if (!limit.ok) return { error: limit.error };
+
   const id = await createIdea({ title, pitch, categorySlug, authorId: user.id, audioUrl: audioUrl || null });
   revalidatePath("/");
   revalidatePath("/ideas");
@@ -84,6 +88,11 @@ export async function transcribeIdeaAudioAction(formData: FormData): Promise<Tra
   if (audio.size < 15_000) {
     return { ok: false, error: "Enregistrement trop court, réessaie en donnant plus de détails." };
   }
+  const sizeCheck = checkAudioSize(audio.size);
+  if (!sizeCheck.ok) return { ok: false, error: sizeCheck.error };
+
+  const limit = await checkRateLimit(user.id, "transcribe", 10, 60);
+  if (!limit.ok) return { ok: false, error: limit.error };
 
   const categories = await getCategories();
   const buffer = Buffer.from(await audio.arrayBuffer());
@@ -125,6 +134,10 @@ export async function refineIdeaVoiceAction(formData: FormData): Promise<RefineR
   if (idea.authorId !== user.id) {
     return { ok: false, error: "Seul l'auteur de l'idée peut la préciser." };
   }
+  const sizeCheck = checkAudioSize(audio.size);
+  if (!sizeCheck.ok) return { ok: false, error: sizeCheck.error };
+  const limit = await checkRateLimit(user.id, "voice_refine", 5, 60);
+  if (!limit.ok) return { ok: false, error: limit.error };
 
   const buffer = Buffer.from(await audio.arrayBuffer());
   const mimeType = audio.type || "audio/webm";
@@ -156,13 +169,25 @@ export async function validateKitAction(ideaId: number): Promise<RefineResult> {
   if (idea.authorId !== user.id) {
     return { ok: false, error: "Seul l'auteur de l'idée peut lancer la génération." };
   }
+  const limit = await checkRateLimit(user.id, "kit_generation", 3, 24 * 60);
+  if (!limit.ok) return limit;
 
   const result = await validateAndGenerateKit(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
   return result;
 }
 
+// Génère 2 appels Gemini (texte + flyer) : réservé à l'auteur, comme
+// validateKitAction — sans quoi n'importe qui pourrait relancer la
+// génération sur l'idée de n'importe qui d'autre.
 export async function retryKitAction(ideaId: number): Promise<void> {
+  const user = await getSession();
+  if (!user) return;
+  const idea = await getIdea(ideaId);
+  if (!idea || idea.authorId !== user.id) return;
+  const limit = await checkRateLimit(user.id, "kit_generation", 3, 24 * 60);
+  if (!limit.ok) return;
+
   await retryStarterKit(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
 }
@@ -171,6 +196,8 @@ export async function retryKitAction(ideaId: number): Promise<void> {
 export async function forkIdeaAction(ideaId: number): Promise<void> {
   const user = await getSession();
   if (!user) redirect(loginHref(`/ideas/${ideaId}`));
+  const limit = await checkRateLimit(user.id, "create_idea", 5, 60);
+  if (!limit.ok) redirect(`/ideas/${ideaId}`);
   const newId = await forkIdea(ideaId, user.id);
   revalidatePath("/");
   revalidatePath("/ideas");
@@ -187,6 +214,8 @@ export async function addCommentAction(_prev: FormState, formData: FormData): Pr
   if (body.length < 2 || body.length > 1000) {
     return { error: "Le commentaire doit faire entre 2 et 1000 caractères." };
   }
+  const limit = await checkRateLimit(user.id, "comment", 30, 60);
+  if (!limit.ok) return { error: limit.error };
 
   await addComment(ideaId, user.id, body);
   revalidatePath(`/ideas/${ideaId}`);
@@ -207,6 +236,10 @@ export async function addVoiceCommentAction(formData: FormData): Promise<VoiceCo
   if (!(audio instanceof File) || audio.size === 0) {
     return { ok: false, error: "Aucun enregistrement reçu." };
   }
+  const sizeCheck = checkAudioSize(audio.size);
+  if (!sizeCheck.ok) return { ok: false, error: sizeCheck.error };
+  const limit = await checkRateLimit(user.id, "voice_comment", 15, 60);
+  if (!limit.ok) return { ok: false, error: limit.error };
 
   const buffer = Buffer.from(await audio.arrayBuffer());
   const mimeType = audio.type || "audio/webm";
@@ -233,12 +266,30 @@ export async function voteAction(ideaId: number): Promise<void> {
   revalidatePath("/ideas");
 }
 
+// Réservés à l'auteur : sans quoi n'importe quel visiteur, même déconnecté,
+// pourrait relancer un appel Gemini sur l'idée de n'importe qui via ces
+// Server Actions (elles restent appelables directement, pas seulement
+// depuis le bouton visible dans l'UI).
 export async function retryAiAction(ideaId: number): Promise<void> {
+  const user = await getSession();
+  if (!user) return;
+  const idea = await getIdea(ideaId);
+  if (!idea || idea.authorId !== user.id) return;
+  const limit = await checkRateLimit(user.id, "retry", 10, 60);
+  if (!limit.ok) return;
+
   await retryAiImprovement(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
 }
 
 export async function retryCoverAction(ideaId: number): Promise<void> {
+  const user = await getSession();
+  if (!user) return;
+  const idea = await getIdea(ideaId);
+  if (!idea || idea.authorId !== user.id) return;
+  const limit = await checkRateLimit(user.id, "retry", 10, 60);
+  if (!limit.ok) return;
+
   await retryCoverGeneration(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
 }

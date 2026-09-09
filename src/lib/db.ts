@@ -73,6 +73,16 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (idea_id, user_id)
   );
+
+  -- Chaque appel IA coûte de l'argent (Gemini + Blob) : cette table sert de
+  -- compteur glissant pour limiter les actions coûteuses par utilisateur.
+  CREATE TABLE IF NOT EXISTS usage_events (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    action TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_usage_events_lookup ON usage_events(user_id, action, created_at);
 `;
 
 function makeConnectionString(): string {
