@@ -2,7 +2,7 @@ import { query, ready } from "./db";
 
 export type RateLimitResult = { ok: true } | { ok: false; error: string };
 
-function formatWindow(minutes: number): string {
+export function formatWindow(minutes: number): string {
   if (minutes % 60 === 0) return `${minutes / 60} h`;
   return `${minutes} min`;
 }
@@ -25,6 +25,7 @@ export async function checkRateLimit(
     [userId, action, windowMinutes],
   );
   if (Number(rows[0]?.count ?? 0) >= max) {
+    console.warn("[rate-limit]", action, "blocked user", userId, `(${max}/${windowMinutes}min)`);
     return { ok: false, error: `Limite atteinte (${max} par ${formatWindow(windowMinutes)}). Réessaie plus tard.` };
   }
   await query("INSERT INTO usage_events (user_id, action) VALUES ($1, $2)", [userId, action]);
