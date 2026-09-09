@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { put } from "@vercel/blob";
 import { query, ready } from "./db";
 import { KIT_SCORE_THRESHOLD } from "./constants";
+import { notifyUser } from "./push";
 import {
   improveIdea,
   generateCoverImage,
@@ -282,6 +283,17 @@ export async function addComment(ideaId: number, authorId: number, body: string,
     body,
     audioUrl ?? null,
   ]);
+  const rows = await query<{ author_id: number; title: string }>("SELECT author_id, title FROM ideas WHERE id = $1", [ideaId]);
+  const idea = rows[0];
+  if (idea && Number(idea.author_id) !== authorId) {
+    after(() =>
+      notifyUser(Number(idea.author_id), {
+        title: "Nouvelle réaction",
+        body: `Quelqu'un a réagi à « ${idea.title} ».`,
+        url: `/ideas/${ideaId}`,
+      }),
+    );
+  }
 }
 
 /** Ajoute ou retire le vote ; renvoie true si l'utilisateur a maintenant voté. */
@@ -293,6 +305,17 @@ export async function toggleVote(ideaId: number, userId: number): Promise<boolea
   );
   if (deleted.length > 0) return false;
   await query("INSERT INTO votes (idea_id, user_id) VALUES ($1, $2)", [ideaId, userId]);
+  const rows = await query<{ author_id: number; title: string }>("SELECT author_id, title FROM ideas WHERE id = $1", [ideaId]);
+  const idea = rows[0];
+  if (idea && Number(idea.author_id) !== userId) {
+    after(() =>
+      notifyUser(Number(idea.author_id), {
+        title: "Nouveau soutien",
+        body: `Quelqu'un soutient « ${idea.title} ».`,
+        url: `/ideas/${ideaId}`,
+      }),
+    );
+  }
   return true;
 }
 
@@ -335,7 +358,7 @@ export async function createIdea(opts: {
   // du travail (un simple fire-and-forget serait gelé sur Vercel).
   after(() =>
     Promise.all([
-      runAiImprovement(id, opts.title, opts.pitch),
+      runAiImprovement(id, opts.title, opts.pitch, opts.authorId),
       runCoverGeneration(id, opts.title, opts.pitch, categoryName),
     ]),
   );
@@ -351,29 +374,48 @@ export async function createIdea(opts: {
  */
 export async function forkIdea(originalId: number, forkerId: number): Promise<number> {
   await ready();
-  const rows = await query<{ title: string; pitch: string; category_slug: string }>(
-    `SELECT i.title, i.pitch, c.slug AS category_slug
+  const rows = await query<{ title: string; pitch: string; category_slug: string; author_id: number }>(
+    `SELECT i.title, i.pitch, c.slug AS category_slug, i.author_id
      FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = $1`,
     [originalId],
   );
   if (rows.length === 0) throw new Error("Idée introuvable");
-  const { title, pitch, category_slug } = rows[0];
-  return createIdea({
+  const { title, pitch, category_slug, author_id } = rows[0];
+  const newId = await createIdea({
     title: String(title),
     pitch: String(pitch),
     categorySlug: String(category_slug),
     authorId: forkerId,
     parentIdeaId: originalId,
   });
+  if (Number(author_id) !== forkerId) {
+    after(() =>
+      notifyUser(Number(author_id), {
+        title: "Ton idée a été forkée",
+        body: `Quelqu'un a repris « ${title} » pour la faire évoluer de son côté.`,
+        url: `/ideas/${newId}`,
+      }),
+    );
+  }
+  return newId;
 }
 
-async function runAiImprovement(id: number, title: string, pitch: string) {
+async function runAiImprovement(id: number, title: string, pitch: string, authorId: number) {
   try {
     const improved = await improveIdea(title, pitch);
     await query(
       "UPDATE ideas SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_error = NULL WHERE id = $3",
       [JSON.stringify(improved), improved.score, id],
     );
+    if (improved.score >= KIT_SCORE_THRESHOLD) {
+      after(() =>
+        notifyUser(authorId, {
+          title: "Seuil atteint 🎉",
+          body: `« ${title} » a atteint ${improved.score}/100 — débloque le dossier de démarrage.`,
+          url: `/ideas/${id}`,
+        }),
+      );
+    }
   } catch (err) {
     await query("UPDATE ideas SET ai_status = 'failed', ai_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
@@ -408,14 +450,14 @@ async function runCoverGeneration(id: number, title: string, pitch: string, cate
  */
 export async function retryAiImprovement(id: number): Promise<void> {
   await ready();
-  const rows = await query<{ title: string; pitch: string }>(
-    "SELECT title, pitch FROM ideas WHERE id = $1",
+  const rows = await query<{ title: string; pitch: string; author_id: number }>(
+    "SELECT title, pitch, author_id FROM ideas WHERE id = $1",
     [id],
   );
   if (rows.length === 0) return;
-  const { title, pitch } = rows[0];
+  const { title, pitch, author_id } = rows[0];
   await query("UPDATE ideas SET ai_status = 'pending' WHERE id = $1", [id]);
-  after(() => runAiImprovement(id, String(title), String(pitch)));
+  after(() => runAiImprovement(id, String(title), String(pitch), Number(author_id)));
 }
 
 export async function retryCoverGeneration(id: number): Promise<void> {
@@ -437,9 +479,12 @@ export async function retryCoverGeneration(id: number): Promise<void> {
  */
 export async function refineIdeaWithVoice(id: number, transcript: string, audioUrl: string): Promise<void> {
   await ready();
-  const rows = await query<{ title: string; pitch: string }>("SELECT title, pitch FROM ideas WHERE id = $1", [id]);
+  const rows = await query<{ title: string; pitch: string; author_id: number }>(
+    "SELECT title, pitch, author_id FROM ideas WHERE id = $1",
+    [id],
+  );
   if (rows.length === 0) throw new Error("Idée introuvable");
-  const { title, pitch } = rows[0];
+  const { title, pitch, author_id } = rows[0];
 
   const mergedPitch = await refineIdeaPitch(String(pitch), transcript);
   await query("UPDATE ideas SET pitch = $1, audio_url = $2, ai_status = 'pending' WHERE id = $3", [
@@ -447,7 +492,7 @@ export async function refineIdeaWithVoice(id: number, transcript: string, audioU
     audioUrl,
     id,
   ]);
-  after(() => runAiImprovement(id, String(title), mergedPitch));
+  after(() => runAiImprovement(id, String(title), mergedPitch, Number(author_id)));
 }
 
 /** Marque un jalon réel franchi, sans écraser un échec/relance concurrent. */
@@ -455,7 +500,14 @@ async function bumpKitStep(id: number) {
   await query("UPDATE ideas SET kit_step = kit_step + 1 WHERE id = $1 AND kit_status = 'pending'", [id]);
 }
 
-async function runStarterKit(id: number, title: string, pitch: string, categoryName: string, analysis: IdeaImprovement) {
+async function runStarterKit(
+  id: number,
+  title: string,
+  pitch: string,
+  categoryName: string,
+  analysis: IdeaImprovement,
+  authorId: number,
+) {
   try {
     // Les deux appels tournent en parallèle (pas de perte de temps), mais
     // chacun signale son propre jalon dès qu'il termine : deux avancées
@@ -480,11 +532,25 @@ async function runStarterKit(id: number, title: string, pitch: string, categoryN
       "UPDATE ideas SET kit_status = 'done', kit_json = $1, kit_flyer_image = $2, kit_error = NULL WHERE id = $3",
       [JSON.stringify(kit), blob.url, id],
     );
+    after(() =>
+      notifyUser(authorId, {
+        title: "Dossier prêt 🚀",
+        body: `Le dossier de démarrage de « ${title} » est généré.`,
+        url: `/ideas/${id}/site`,
+      }),
+    );
   } catch (err) {
     await query("UPDATE ideas SET kit_status = 'failed', kit_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       id,
     ]);
+    after(() =>
+      notifyUser(authorId, {
+        title: "Génération échouée",
+        body: `La génération du dossier de « ${title} » n'a pas abouti — tu peux réessayer.`,
+        url: `/ideas/${id}`,
+      }),
+    );
   }
 }
 
@@ -496,13 +562,13 @@ async function runStarterKit(id: number, title: string, pitch: string, categoryN
  */
 export async function validateAndGenerateKit(id: number): Promise<{ ok: true } | { ok: false; error: string }> {
   await ready();
-  const rows = await query<{ title: string; pitch: string; ai_score: number | null; category_name: string }>(
-    `SELECT i.title, i.pitch, i.ai_score, c.name AS category_name
+  const rows = await query<{ title: string; pitch: string; ai_score: number | null; category_name: string; author_id: number }>(
+    `SELECT i.title, i.pitch, i.ai_score, c.name AS category_name, i.author_id
      FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = $1`,
     [id],
   );
   if (rows.length === 0) return { ok: false, error: "Idée introuvable" };
-  const { title, pitch, ai_score, category_name } = rows[0];
+  const { title, pitch, ai_score, category_name, author_id } = rows[0];
   if (ai_score === null || ai_score < KIT_SCORE_THRESHOLD) {
     return { ok: false, error: `Le score doit atteindre ${KIT_SCORE_THRESHOLD}/100 avant de générer le dossier.` };
   }
@@ -512,21 +578,21 @@ export async function validateAndGenerateKit(id: number): Promise<{ ok: true } |
   if (!analysis) return { ok: false, error: "Analyse IA manquante." };
 
   await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0, kit_error = NULL WHERE id = $1", [id]);
-  after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis));
+  after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis, Number(author_id)));
   return { ok: true };
 }
 
 export async function retryStarterKit(id: number): Promise<void> {
   await ready();
-  const rows = await query<{ title: string; pitch: string; ai_json: string | null; category_name: string }>(
-    `SELECT i.title, i.pitch, i.ai_json, c.name AS category_name
+  const rows = await query<{ title: string; pitch: string; ai_json: string | null; category_name: string; author_id: number }>(
+    `SELECT i.title, i.pitch, i.ai_json, c.name AS category_name, i.author_id
      FROM ideas i JOIN categories c ON c.id = i.category_id WHERE i.id = $1`,
     [id],
   );
   if (rows.length === 0) return;
-  const { title, pitch, ai_json, category_name } = rows[0];
+  const { title, pitch, ai_json, category_name, author_id } = rows[0];
   const analysis = parseAi(ai_json);
   if (!analysis) return;
   await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0 WHERE id = $1", [id]);
-  after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis));
+  after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis, Number(author_id)));
 }

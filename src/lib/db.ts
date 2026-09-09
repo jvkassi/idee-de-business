@@ -83,6 +83,19 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_usage_events_lookup ON usage_events(user_id, action, created_at);
+
+  -- Abonnements aux notifications push web (nouveau commentaire/vote, seuil
+  -- IA atteint, fork, dossier de démarrage prêt). Un même utilisateur peut
+  -- avoir plusieurs abonnements (plusieurs appareils/navigateurs).
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
 `;
 
 function makeConnectionString(): string {

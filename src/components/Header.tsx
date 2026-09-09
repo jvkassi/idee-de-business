@@ -4,6 +4,7 @@ import { logoutAction } from "@/app/actions";
 import { loginHref } from "@/lib/format";
 import Avatar from "@/components/Avatar";
 import Logo from "@/components/Logo";
+import PushBell from "@/components/PushBell";
 
 export default function Header({ user }: { user: SessionUser | null }) {
   return (
@@ -51,6 +52,7 @@ export default function Header({ user }: { user: SessionUser | null }) {
             <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-1 pr-1.5">
               <Avatar pseudo={user.pseudo} size="sm" />
               <span className="hidden max-w-28 truncate text-sm font-medium sm:inline">{user.pseudo}</span>
+              <PushBell />
               <form action={logoutAction}>
                 <button
                   type="submit"

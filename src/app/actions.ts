@@ -26,6 +26,7 @@ import {
 import { loginHref, safeNext } from "@/lib/format";
 import { transcribeIdeaAudio, transcribeShortAudio, type VoiceIdeaDraft } from "@/lib/gemini";
 import { checkAudioSize, checkRateLimit } from "@/lib/rateLimit";
+import { removeSubscription, saveSubscription, type PushSubscriptionInput } from "@/lib/push";
 
 export type FormState = { error?: string } | undefined;
 
@@ -280,6 +281,17 @@ export async function retryAiAction(ideaId: number): Promise<void> {
 
   await retryAiImprovement(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
+}
+
+export async function subscribePushAction(sub: PushSubscriptionInput): Promise<{ ok: boolean }> {
+  const user = await getSession();
+  if (!user) return { ok: false };
+  await saveSubscription(user.id, sub);
+  return { ok: true };
+}
+
+export async function unsubscribePushAction(endpoint: string): Promise<void> {
+  await removeSubscription(endpoint);
 }
 
 export async function retryCoverAction(ideaId: number): Promise<void> {
