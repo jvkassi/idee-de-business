@@ -17,10 +17,29 @@ const grotesk = Space_Grotesk({
   display: "swap",
 });
 
+const SITE_URL = "https://idee-de-business.vercel.app";
+const DESCRIPTION =
+  "Partage ton idée de business, la communauté vote et commente, l'IA la structure, la note et l'illustre automatiquement.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: "Idées de Business", template: "%s · Idées de Business" },
-  description:
-    "Partage ton idée de business, la communauté vote et commente, l'IA la structure, la note et l'illustre automatiquement.",
+  description: DESCRIPTION,
+  openGraph: {
+    title: "Idées de Business",
+    description: DESCRIPTION,
+    url: SITE_URL,
+    siteName: "Idées de Business",
+    locale: "fr_FR",
+    type: "website",
+    images: [{ url: "/og-cover.jpg", width: 1376, height: 768, alt: "Idées de Business" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Idées de Business",
+    description: DESCRIPTION,
+    images: ["/og-cover.jpg"],
+  },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

@@ -31,9 +31,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const ideaId = parseId((await params).id);
   const idea = ideaId ? await getIdea(ideaId) : null;
   if (!idea) return { title: "Idée introuvable" };
+  const description = (idea.aiSummary || idea.pitch).slice(0, 160);
   return {
     title: idea.title,
-    description: (idea.aiSummary || idea.pitch).slice(0, 160),
+    description,
+    // Chaque idée a déjà sa propre illustration IA : on la réutilise comme
+    // aperçu de lien plutôt que l'image générique du site.
+    openGraph: idea.coverImage
+      ? { title: idea.title, description, images: [{ url: idea.coverImage }] }
+      : undefined,
+    twitter: idea.coverImage
+      ? { card: "summary_large_image", title: idea.title, description, images: [idea.coverImage] }
+      : undefined,
   };
 }
 
