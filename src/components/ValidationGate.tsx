@@ -7,6 +7,7 @@ import type { IdeaDetail } from "@/lib/ideas";
 import { KIT_SCORE_THRESHOLD } from "@/lib/constants";
 import { refineIdeaVoiceAction, retryKitAction, validateKitAction } from "@/app/actions";
 import VoiceRecorder from "@/components/VoiceRecorder";
+import KitProgress from "@/components/KitProgress";
 
 function ValidateButton({ ideaId }: { ideaId: number }) {
   const router = useRouter();
@@ -132,14 +133,7 @@ export default function ValidationGate({ idea, isOwner }: { idea: IdeaDetail; is
   }
 
   if (idea.kitStatus === "pending") {
-    return (
-      <section className="card space-y-2 p-5 text-center sm:p-6" aria-live="polite">
-        <svg className="mx-auto h-6 w-6 animate-spin text-ink-2" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-          <path d="M10 3a7 7 0 1 1-7 7" strokeLinecap="round" />
-        </svg>
-        <p className="text-sm font-medium">Le dossier de démarrage se prépare (~40 s)…</p>
-      </section>
-    );
+    return <KitProgress realStep={idea.kitStep} />;
   }
 
   if (idea.kitStatus === "failed") {

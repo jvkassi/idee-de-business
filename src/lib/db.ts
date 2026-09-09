@@ -48,6 +48,7 @@ const SCHEMA = `
     cover_image TEXT,
     cover_error TEXT,
     kit_status TEXT NOT NULL DEFAULT 'none',
+    kit_step INTEGER NOT NULL DEFAULT 0,
     kit_json TEXT,
     kit_flyer_image TEXT,
     kit_error TEXT,
@@ -96,6 +97,7 @@ const MIGRATIONS = [
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_json TEXT",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_flyer_image TEXT",
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_error TEXT",
+  "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS kit_step INTEGER NOT NULL DEFAULT 0",
   "ALTER TABLE comments ADD COLUMN IF NOT EXISTS audio_url TEXT",
   "CREATE INDEX IF NOT EXISTS idx_ideas_parent ON ideas(parent_idea_id)",
 ];

@@ -42,6 +42,8 @@ export type IdeaListItem = {
   parentIdeaId: number | null;
   forkCount: number;
   kitStatus: KitStatus;
+  /** Nombre de jalons réels franchis (0-2) pendant kit_status='pending' — sert d'ancrage à la progression affichée. */
+  kitStep: number;
   kitFlyerImage: string | null;
 };
 
@@ -88,7 +90,7 @@ const LIST_SELECT = `
     (SELECT COUNT(*) FROM ideas f WHERE f.parent_idea_id = i.id) AS fork_count,
     i.cover_status, i.cover_image, i.cover_error,
     i.audio_url, i.parent_idea_id,
-    i.kit_status, i.kit_json, i.kit_flyer_image, i.kit_error
+    i.kit_status, i.kit_step, i.kit_json, i.kit_flyer_image, i.kit_error
   FROM ideas i
   JOIN users u ON u.id = i.author_id
   JOIN categories c ON c.id = i.category_id
@@ -135,6 +137,7 @@ function rowToListItem(r: Record<string, unknown>): IdeaListItem {
     parentIdeaId: r.parent_idea_id === null || r.parent_idea_id === undefined ? null : Number(r.parent_idea_id),
     forkCount: Number(r.fork_count || 0),
     kitStatus: String(r.kit_status || "none") as KitStatus,
+    kitStep: Number(r.kit_step || 0),
     kitFlyerImage: r.kit_flyer_image ? String(r.kit_flyer_image) : null,
   };
 }
@@ -392,11 +395,26 @@ export async function refineIdeaWithVoice(id: number, transcript: string, audioU
   after(() => runAiImprovement(id, String(title), mergedPitch));
 }
 
+/** Marque un jalon réel franchi, sans écraser un échec/relance concurrent. */
+async function bumpKitStep(id: number) {
+  await query("UPDATE ideas SET kit_step = kit_step + 1 WHERE id = $1 AND kit_status = 'pending'", [id]);
+}
+
 async function runStarterKit(id: number, title: string, pitch: string, categoryName: string, analysis: IdeaImprovement) {
   try {
+    // Les deux appels tournent en parallèle (pas de perte de temps), mais
+    // chacun signale son propre jalon dès qu'il termine : deux avancées
+    // réelles pour ancrer la progression affichée, dans l'ordre où elles
+    // arrivent.
     const [kit, flyer] = await Promise.all([
-      generateStarterKit(title, pitch, analysis),
-      generateFlyerImage(title, pitch, categoryName),
+      generateStarterKit(title, pitch, analysis).then(async (r) => {
+        await bumpKitStep(id);
+        return r;
+      }),
+      generateFlyerImage(title, pitch, categoryName).then(async (r) => {
+        await bumpKitStep(id);
+        return r;
+      }),
     ]);
     const ext = flyer.mimeType === "image/png" ? "png" : "jpg";
     const blob = await put(`flyers/${id}-${Date.now()}.${ext}`, Buffer.from(flyer.base64, "base64"), {
@@ -438,7 +456,7 @@ export async function validateAndGenerateKit(id: number): Promise<{ ok: true } |
   const analysis = parseAi(analysisRows[0]?.ai_json);
   if (!analysis) return { ok: false, error: "Analyse IA manquante." };
 
-  await query("UPDATE ideas SET kit_status = 'pending', kit_error = NULL WHERE id = $1", [id]);
+  await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0, kit_error = NULL WHERE id = $1", [id]);
   after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis));
   return { ok: true };
 }
@@ -454,6 +472,6 @@ export async function retryStarterKit(id: number): Promise<void> {
   const { title, pitch, ai_json, category_name } = rows[0];
   const analysis = parseAi(ai_json);
   if (!analysis) return;
-  await query("UPDATE ideas SET kit_status = 'pending' WHERE id = $1", [id]);
+  await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0 WHERE id = $1", [id]);
   after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis));
 }

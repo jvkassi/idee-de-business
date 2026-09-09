@@ -19,9 +19,10 @@ import ValidationGate from "@/components/ValidationGate";
 import CommentForm from "./CommentForm";
 
 export const dynamic = "force-dynamic";
-// Les Server Actions "réessayer" planifient un appel Gemini via after() :
-// on laisse à la fonction le temps de le terminer.
-export const maxDuration = 60;
+// Les Server Actions "réessayer"/"valider" planifient des appels Gemini via
+// after() : le dossier de démarrage (texte + flyer) peut prendre jusqu'à
+// ~3 min, on laisse à la fonction le temps de le terminer.
+export const maxDuration = 180;
 
 type Params = Promise<{ id: string }>;
 
