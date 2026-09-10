@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design-deslop": {
+      "source": "samber/cc-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design-deslop/SKILL.md",
+      "computedHash": "01edf7f1558a5ecc0f40936e5f0033535f5919d3a061147287d230461fe8b011"
+    }
+  }
+}
