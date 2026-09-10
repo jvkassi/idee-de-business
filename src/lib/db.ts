@@ -17,7 +17,7 @@ const CATEGORIES: Array<[slug: string, name: string, emoji: string]> = [
   ["autre", "Autre", "💡"],
 ];
 
-const SCHEMA = `
+export const SCHEMA = `
   CREATE EXTENSION IF NOT EXISTS vector;
 
   CREATE TABLE IF NOT EXISTS users (
@@ -77,7 +77,7 @@ const SCHEMA = `
     PRIMARY KEY (idea_id, user_id)
   );
 
-<  -- Chaque appel IA coûte de l'argent (Gemini + Blob) : cette table sert de
+  -- Chaque appel IA coûte de l'argent (Gemini + Blob) : cette table sert de
   -- compteur glissant pour limiter les actions coûteuses par utilisateur.
   CREATE TABLE IF NOT EXISTS usage_events (
     id SERIAL PRIMARY KEY,
