@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-surface-2 text-4xl" aria-hidden>
+      <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-xl border-[1.5px] border-line-2 bg-surface-2 text-4xl" aria-hidden>
         🔍
       </div>
       <p className="label">Erreur 404</p>

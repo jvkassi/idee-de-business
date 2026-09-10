@@ -46,7 +46,7 @@ export default function IdeaCard({ idea, loggedIn }: { idea: IdeaListItem; logge
   return (
     <article
       style={categoryStyle(idea.categorySlug)}
-      className="card idea-grid group relative p-3 transition-[border-color,box-shadow] duration-200 has-[a:focus-visible]:border-ink hover:border-ink/40 hover:shadow-lift sm:p-4"
+      className="card idea-grid group relative p-3 transition-colors duration-150 has-[a:focus-visible]:border-ink hover:border-ink sm:p-4"
     >
       {/* Vignette : passe-partout + emoji derrière, image IA devant si elle existe */}
       <div className="mat relative h-[4.25rem] w-[4.25rem] overflow-hidden rounded-xl p-1 [grid-area:thumb] sm:h-28 sm:w-40 sm:p-1.5">
@@ -61,7 +61,7 @@ export default function IdeaCard({ idea, loggedIn }: { idea: IdeaListItem; logge
             <CoverImage
               src={idea.coverImage}
               title={idea.title}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className="absolute inset-0 h-full w-full object-cover"
             />
           )}
         </div>

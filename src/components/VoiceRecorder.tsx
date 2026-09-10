@@ -242,7 +242,7 @@ export default function VoiceRecorder({
         disabled={requesting}
         className="group flex flex-col items-center gap-3 rounded-2xl px-4 py-2 disabled:opacity-60"
       >
-        <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-ink bg-sun text-ink shadow-lift transition-transform group-hover:scale-105 group-active:scale-95">
+        <span className="grid h-20 w-20 place-items-center rounded-full border-2 border-ink bg-sun text-ink shadow-pop transition-transform group-active:translate-x-[2px] group-active:translate-y-[2px] group-active:shadow-none">
           {requesting ? <Spinner className="h-7 w-7 text-ink" /> : <MicIcon className="h-8 w-8" />}
         </span>
         <span className="btn btn-ink pointer-events-none px-5 py-2.5 text-sm">

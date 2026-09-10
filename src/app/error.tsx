@@ -16,7 +16,7 @@ export default function ErrorPage({
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-bad-soft text-4xl" aria-hidden>
+      <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-xl border-[1.5px] border-line-2 bg-bad-soft text-4xl" aria-hidden>
         ⚡
       </div>
       <p className="label text-bad">Oups</p>

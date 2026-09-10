@@ -158,16 +158,18 @@ async function LiveStats() {
     { value: s.validated, label: `au-dessus de ${KIT_SCORE_THRESHOLD}/100` },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {tiles.map((t) => (
-        <div key={t.label} className="card p-4">
-          <p className="font-display text-3xl font-bold leading-none tracking-tight tabular-nums sm:text-4xl">
-            {t.human ? <span className="hl">{t.value}</span> : t.value}
-          </p>
-          <p className="mt-2 text-xs font-medium text-ink-2">{t.label}</p>
-        </div>
-      ))}
-      <p className="col-span-2 text-xs text-ink-3 sm:col-span-4">
+    <div>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+        {tiles.map((t) => (
+          <div key={t.label} className="border-l-[3px] border-sun pl-3">
+            <dd className="font-mono text-3xl font-bold leading-none tracking-tight tabular-nums sm:text-4xl">
+              {t.human ? <span className="hl">{t.value}</span> : t.value}
+            </dd>
+            <dt className="mt-2 text-xs font-medium text-ink-2">{t.label}</dt>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 text-xs text-ink-3">
         Chiffres en direct. {plural(s.users, "membre")} ont déjà un pseudo
         {s.kits > 0 && <> · {plural(s.kits, "dossier de démarrage généré", "dossiers de démarrage générés")}</>}.
       </p>
@@ -273,14 +275,19 @@ export default async function LandingPage() {
           </div>
           <p className="mt-4 text-xs text-ink-3">Juste un pseudo, pas de mot de passe. Rien à installer.</p>
         </div>
-        <Image
-          src="/hero.jpg"
-          alt="Un entrepreneur parle son idée à voix haute dans son téléphone ; elle se transforme en fiche structurée, notée et illustrée."
-          width={1200}
-          height={896}
-          priority
-          className="w-full rounded-3xl border border-line"
-        />
+        <figure className="relative">
+          <Image
+            src="/hero-market.jpg"
+            alt="Un jeune entrepreneur lève son téléphone au milieu d'un marché animé d'Abidjan ; des fiches projet et des étoiles de vote s'en échappent."
+            width={1200}
+            height={896}
+            priority
+            className="w-full rounded-xl border-2 border-ink shadow-pop"
+          />
+          <figcaption className="sticker absolute -bottom-4 left-4">
+            ★ 100% gratuit · en français
+          </figcaption>
+        </figure>
       </section>
 
       {/* ------------------------------------------------------- Compteurs */}
@@ -301,18 +308,18 @@ export default async function LandingPage() {
           }
           lede="Tu parles, la machine écrit, la communauté juge, et le dossier se génère. Chaque étape a une voix : la tienne en jaune, celle de l'IA en encre."
         />
-        <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-10 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s, i) => (
-            <li key={i} className="card flex flex-col p-5">
-              <div className="flex items-start justify-between gap-3">
-                <span className="font-display text-5xl font-bold leading-none tracking-tight text-line-2">
+            <li key={i} className="border-t-[3px] border-ink pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-sm font-bold tabular-nums text-ink">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <span className="rounded-full bg-surface-2 px-2 py-1 text-[11px] font-semibold tabular-nums text-ink-2">
+                <span className="rounded-full border border-line-2 bg-surface-2 px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums text-ink-2">
                   {s.time}
                 </span>
               </div>
-              <div className="mt-5">
+              <div className="mt-4">
                 <WhoTag who={s.who} />
               </div>
               <h3 className="mt-2 font-display text-lg font-bold leading-snug">{s.title}</h3>
@@ -377,12 +384,14 @@ export default async function LandingPage() {
           </div>
           <ul className="grid gap-3 sm:grid-cols-2">
             {KIT_ITEMS.map((k) => (
-              <li key={k.title} className="card p-5">
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-sun-soft text-2xl" aria-hidden>
+              <li key={k.title} className="card flex gap-4 p-5">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border-[1.5px] border-ink bg-sun-soft text-2xl" aria-hidden>
                   {k.icon}
                 </div>
-                <h3 className="mt-4 font-display text-lg font-bold">{k.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{k.text}</p>
+                <div className="min-w-0">
+                  <h3 className="font-display text-lg font-bold leading-snug">{k.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-ink-2">{k.text}</p>
+                </div>
               </li>
             ))}
           </ul>
@@ -414,7 +423,7 @@ export default async function LandingPage() {
 
       {/* ------------------------------------------------------- Appel final */}
       <section className="pb-6 pt-4 sm:pb-10" aria-labelledby="cta-title">
-        <div className="relative overflow-hidden rounded-3xl border border-ink bg-sun px-6 py-12 text-center sm:px-12 sm:py-16">
+        <div className="relative overflow-hidden rounded-2xl border-2 border-ink bg-sun px-6 py-12 text-center shadow-pop sm:px-12 sm:py-16">
           <p className="label text-ink/70">
             {CITIES.join(" · ")} · partout où il y a du réseau
           </p>

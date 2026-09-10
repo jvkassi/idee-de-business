@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans, Space_Mono } from "next/font/google";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -7,8 +7,9 @@ import Header from "@/components/Header";
 import { getSession } from "@/lib/session";
 import "./globals.css";
 
-// Deux voix, deux familles : Bricolage pour ce que l'humain écrit (titres,
-// idées), Instrument pour l'interface et tout ce que la machine produit.
+// Trois voix : Bricolage pour ce que l'humain écrit (titres, idées),
+// Instrument pour l'interface et la machine, Space Mono pour les chiffres
+// et étiquettes (scores, minuteurs, badges de fil).
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
   subsets: ["latin"],
@@ -19,6 +20,13 @@ const bricolage = Bricolage_Grotesque({
 const instrument = Instrument_Sans({
   variable: "--font-instrument",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const spaceMono = Space_Mono({
+  variable: "--font-spacemono",
+  subsets: ["latin"],
+  weight: ["400", "700"],
   display: "swap",
 });
 
@@ -50,7 +58,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await getSession();
   return (
-    <html lang="fr" className={`${bricolage.variable} ${instrument.variable} h-full`}>
+    <html lang="fr" className={`${bricolage.variable} ${instrument.variable} ${spaceMono.variable} h-full`}>
       <body className="flex min-h-full flex-col">
         <Header user={user} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-8">{children}</main>
