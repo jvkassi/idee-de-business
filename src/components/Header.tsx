@@ -39,6 +39,9 @@ export default function Header({ user }: { user: SessionUser | null }) {
             <Link href="/jobs" className={`${NAV_LINK} inline-flex`}>
               Emplois
             </Link>
+            <Link href="/profil" className={`${NAV_LINK} hidden sm:inline-flex`}>
+              Profil
+            </Link>
             <Link href="/faq" className={`${NAV_LINK} hidden sm:inline-flex`}>
               FAQ
             </Link>
@@ -56,7 +59,9 @@ export default function Header({ user }: { user: SessionUser | null }) {
 
           {user ? (
             <div className="flex items-center gap-0.5 rounded-full border border-line bg-surface py-0.5 pl-1 pr-0.5 sm:gap-1">
-              <Avatar pseudo={user.pseudo} size="sm" />
+              <Link href="/profil" title="Mon profil" aria-label="Mon profil" className="rounded-full">
+                <Avatar pseudo={user.pseudo} size="sm" />
+              </Link>
               <span className="hidden max-w-28 truncate px-1 text-sm font-medium sm:inline">{user.pseudo}</span>
               <PushBell />
               <form action={logoutAction}>

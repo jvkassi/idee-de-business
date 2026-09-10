@@ -350,3 +350,90 @@ export async function syncJobsAction(): Promise<void> {
   await syncJobOffers(20);
   revalidatePath("/jobs");
 }
+
+export async function uploadCvAction(_prev: FormState, formData: FormData): Promise<FormState & { ok?: boolean }> {
+  const user = await getSession();
+  if (!user) return { error: "Connecte-toi d'abord." };
+  const limit = await checkRateLimit(user.id, "upload_cv", 5, 60);
+  if (!limit.ok) return { error: limit.error };
+
+  const file = formData.get("cv");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choisis ton CV (PDF ou photo)." };
+
+  const { uploadCv } = await import("@/lib/profile");
+  try {
+    await uploadCv(user.id, file);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Échec de la lecture du CV." };
+  }
+  revalidatePath("/profil");
+  return { ok: true };
+}
+
+export async function describeYourselfAction(_prev: FormState, formData: FormData): Promise<FormState & { ok?: boolean }> {
+  const user = await getSession();
+  if (!user) return { error: "Connecte-toi d'abord." };
+  const text = String(formData.get("about") || "").trim();
+  if (text.length < 30) return { error: "Raconte-m'en un peu plus (au moins quelques phrases)." };
+  if (text.length > 3000) return { error: "Un peu plus court (max 3000 caractères)." };
+  const limit = await checkRateLimit(user.id, "describe", 10, 60);
+  if (!limit.ok) return { error: limit.error };
+
+  const { buildProfileFromText } = await import("@/lib/profile");
+  try {
+    await buildProfileFromText(user.id, text);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Djossi n'a pas compris, réessaie." };
+  }
+  revalidatePath("/profil");
+  return { ok: true };
+}
+
+export type RedoCvResult = { ok: true; cv: string } | { ok: false; error: string };
+export async function redoCvAction(): Promise<RedoCvResult> {
+  const user = await getSession();
+  if (!user) return { ok: false, error: "Connecte-toi d'abord." };
+  const limit = await checkRateLimit(user.id, "redo_cv", 5, 60);
+  if (!limit.ok) return { ok: false, error: limit.error };
+
+  const { redoCv } = await import("@/lib/profile");
+  try {
+    return { ok: true, cv: await redoCv(user.id) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Échec de la réécriture." };
+  }
+}
+
+export async function uploadPhotoAction(_prev: FormState, formData: FormData): Promise<FormState & { ok?: boolean }> {
+  const user = await getSession();
+  if (!user) return { error: "Connecte-toi d'abord." };
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choisis ta photo." };
+
+  const { uploadPhoto } = await import("@/lib/profile");
+  try {
+    await uploadPhoto(user.id, file);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Échec de l'envoi." };
+  }
+  revalidatePath("/profil");
+  return { ok: true };
+}
+
+export type EnhancePhotoResult = { ok: true } | { ok: false; error: string };
+
+export async function enhancePhotoAction(): Promise<EnhancePhotoResult> {
+  const user = await getSession();
+  if (!user) return { ok: false, error: "Connecte-toi d'abord." };
+  const limit = await checkRateLimit(user.id, "enhance_photo", 5, 60);
+  if (!limit.ok) return { ok: false, error: limit.error };
+
+  const { enhanceProfilePhoto } = await import("@/lib/profile");
+  try {
+    await enhanceProfilePhoto(user.id);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Échec de la retouche." };
+  }
+  revalidatePath("/profil");
+  return { ok: true };
+}

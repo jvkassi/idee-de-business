@@ -504,3 +504,206 @@ ${JOB_SCHEMA_HINT}`;
       typeof p.score === "number" ? Math.max(0, Math.min(100, Math.round(p.score))) : 50,
   };
 }
+
+export type ProfileExperience = { title: string; company: string; period: string; description: string };
+export type ProfileEducation = { degree: string; school: string; period: string };
+
+export type CandidateProfile = {
+  headline: string;
+  summary: string;
+  skills: string[];
+  experience: ProfileExperience[];
+  education: ProfileEducation[];
+  languages: string[];
+  location: string | null;
+  phone: string | null;
+  email: string | null;
+};
+
+export const EMPTY_PROFILE: CandidateProfile = {
+  headline: "",
+  summary: "",
+  skills: [],
+  experience: [],
+  education: [],
+  languages: [],
+  location: null,
+  phone: null,
+  email: null,
+};
+
+const PROFILE_SCHEMA_HINT = `Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
+{
+  "headline": "titre pro en une ligne (ex: Serveuse expérimentée — Abidjan)",
+  "summary": "2-3 phrases qui présentent le candidat",
+  "skills": ["compétence 1", "compétence 2"],
+  "experience": [{"title": "poste", "company": "employeur", "period": "2022-2024", "description": "une phrase"}],
+  "education": [{"degree": "diplôme", "school": "école", "period": "2020"}],
+  "languages": ["Français", "Anglais"],
+  "location": "ville/quartier ou null",
+  "phone": "téléphone ou null",
+  "email": "email ou null"
+}`;
+
+/** Nettoie et borne un profil renvoyé par Gemini avant stockage. */
+export function sanitizeProfile(p: Partial<CandidateProfile>): CandidateProfile {
+  const str = (v: unknown, max: number): string => (typeof v === "string" ? v.slice(0, max) : "");
+  const strOrNull = (v: unknown, max: number): string | null => {
+    const s = str(v, max).trim();
+    return s ? s : null;
+  };
+  return {
+    headline: str(p.headline, 150),
+    summary: str(p.summary, 800),
+    skills: Array.isArray(p.skills) ? p.skills.map(String).slice(0, 20) : [],
+    experience: Array.isArray(p.experience)
+      ? p.experience
+          .filter((e): e is ProfileExperience => typeof e?.title === "string")
+          .slice(0, 10)
+          .map((e) => ({
+            title: String(e.title).slice(0, 150),
+            company: String(e.company ?? "").slice(0, 150),
+            period: String(e.period ?? "").slice(0, 50),
+            description: String(e.description ?? "").slice(0, 400),
+          }))
+      : [],
+    education: Array.isArray(p.education)
+      ? p.education
+          .filter((e): e is ProfileEducation => typeof e?.degree === "string")
+          .slice(0, 6)
+          .map((e) => ({
+            degree: String(e.degree).slice(0, 150),
+            school: String(e.school ?? "").slice(0, 150),
+            period: String(e.period ?? "").slice(0, 50),
+          }))
+      : [],
+    languages: Array.isArray(p.languages) ? p.languages.map(String).slice(0, 8) : [],
+    location: strOrNull(p.location, 150),
+    phone: strOrNull(p.phone, 50),
+    email: strOrNull(p.email, 150),
+  };
+}
+
+/**
+ * Extrait un profil structuré depuis un CV (PDF ou image) : Gemini lit le
+ * document directement, pas besoin de parser le PDF côté serveur.
+ */
+export async function parseCvDocument(base64: string, mimeType: string): Promise<CandidateProfile> {
+  const prompt = `Voici le CV d'un candidat en Côte d'Ivoire (document joint).
+Extrais-en un profil structuré. Ne rien inventer : si une info est absente,
+mets une chaîne vide / tableau vide / null. Rédige en français.
+${PROFILE_SCHEMA_HINT}`;
+  const parsed = await callGeminiJSON(
+    TEXT_MODEL,
+    [{ text: prompt }, { inlineData: { mimeType, data: base64 } }],
+    0.3,
+  );
+  return sanitizeProfile(parsed as Partial<CandidateProfile>);
+}
+
+export type ProfileChatTurn = {
+  reply: string;
+  updatedProfile: CandidateProfile;
+};
+
+/**
+ * "Raconte-toi" en une fois : le candidat écrit quelques phrases libres,
+ * l'IA en fait un joli profil. Simple, un seul appel, pas de conversation
+ * à gérer.
+ */
+export async function profileFromText(
+  freeText: string,
+  existing?: CandidateProfile,
+): Promise<ProfileChatTurn> {
+  const prompt = `Tu es Djossi, l'assistant amical qui aide un candidat en Côte
+d'Ivoire à se présenter. Il s'est décrit en quelques phrases :
+
+"${freeText.slice(0, 1500)}"
+${existing ? `\nProfil déjà existant à enrichir (sans écraser avec du vide) :\n${JSON.stringify(existing).slice(0, 2000)}` : ""}
+
+1. Construis son profil (ne rien inventer).
+2. Réponds-lui en 2 phrases max, avec enthousiasme, en tutoyant.
+
+Réponds UNIQUEMENT avec un objet JSON valide :
+{"reply": "...", "updatedProfile": {...}}`;
+  const parsed = await callGeminiJSON(TEXT_MODEL, [{ text: prompt }], 0.6);
+  const p = parsed as { reply?: unknown; updatedProfile?: unknown };
+  if (typeof p.reply !== "string" || !p.reply.trim()) throw new Error("Réponse Djossi vide");
+  return {
+    reply: p.reply.trim().slice(0, 500),
+    updatedProfile: sanitizeProfile((p.updatedProfile as Partial<CandidateProfile>) ?? EMPTY_PROFILE),
+  };
+}
+
+/**
+ * Refait le CV : version soignée du profil, en markdown, prête à copier ou
+ * à exporter. Le "quick redo" du hub Djossi.
+ */
+export async function rewriteCv(profile: CandidateProfile): Promise<string> {
+  const prompt = `Tu es un expert en recrutement en Côte d'Ivoire. Réécris le CV
+ci-dessous en une version soignée, percutante et honnête (ne rien inventer,
+mets en valeur l'existant, verbes d'action, chiffres quand il y en a).
+
+Profil (JSON) :
+${JSON.stringify(profile).slice(0, 4000)}
+
+Réponds UNIQUEMENT avec le CV en markdown (titres #, ##, listes -, pas de
+texte autour), en français, max 1500 mots.`;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY manquant");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.6, maxOutputTokens: 4096 },
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+  const data = await res.json();
+  const text: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text?.trim()) throw new Error("CV vide");
+  return text.trim().slice(0, 12000);
+}
+
+export type EnhancedPhoto = { mimeType: string; base64: string };
+
+/**
+ * "Rendre pro" : la photo du candidat devient un portrait soigné
+ * (fond neutre, lumière douce, cadrage épaules-tête), sans changer le visage.
+ * Pensé pour les jeunes pros sans studio photo.
+ */
+export async function enhancePortrait(base64Photo: string, mimeType: string): Promise<EnhancedPhoto> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY manquant");
+  const prompt = `Transforme cette photo en portrait professionnel pour un CV :
+fond uni neutre et flouté, lumière douce et naturelle sur le visage,
+cadrage épaules-tête, tenue sobre, netteté et couleurs équilibrées.
+IMPORTANT : garde exactement le même visage, mêmes traits, même personne —
+juste une version soignée, pas une autre personne. Pas de texte dans l'image.`;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Photo } }] }],
+        generationConfig: { imageConfig: { aspectRatio: "1:1" } },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Gemini image API error ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const parts: Array<Record<string, unknown>> = data?.candidates?.[0]?.content?.parts || [];
+  for (const part of parts) {
+    const inline = part.inlineData as { mimeType?: string; data?: string } | undefined;
+    if (inline?.data && inline.mimeType) return { mimeType: inline.mimeType, base64: inline.data };
+  }
+  throw new Error("Aucune image retournée par Gemini");
+}

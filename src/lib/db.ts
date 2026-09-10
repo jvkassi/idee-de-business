@@ -126,6 +126,35 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_job_offers_group ON job_offers(source_group);
   CREATE INDEX IF NOT EXISTS idx_job_offers_posted ON job_offers(posted_at DESC);
+
+  -- Profil candidat Djossi (1 ligne par utilisateur) : construit via upload
+  -- de CV et/ou conversation avec l'IA. Les champs structurés sont stockés
+  -- en JSON texte pour rester simples à lire/écrire.
+  CREATE TABLE IF NOT EXISTS profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    headline TEXT,
+    summary TEXT,
+    skills TEXT,
+    experience TEXT,
+    education TEXT,
+    languages TEXT,
+    location TEXT,
+    phone TEXT,
+    email TEXT,
+    photo_url TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  -- Historique des CV uploadés (Blob + extraction IA). Le plus récent fait foi.
+  CREATE TABLE IF NOT EXISTS cvs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blob_url TEXT NOT NULL,
+    filename TEXT,
+    parsed_json TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_cvs_user ON cvs(user_id);
 `;
 
 function makeConnectionString(): string {
