@@ -17,6 +17,10 @@ export default function Header({ user }: { user: SessionUser | null }) {
         </Link>
 
         <nav className="flex items-center gap-1.5 sm:gap-2">
+          <Link href="/jobs" className="btn btn-ghost px-3 py-2 sm:px-4">
+            <span className="hidden sm:inline">Emplois WhatsApp</span>
+            <span className="sm:hidden">Emplois</span>
+          </Link>
           <Link href={user ? "/ideas/new" : loginHref("/ideas/new")} className="btn btn-sun px-3 py-2 sm:px-4">
             <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
               <path d="M10 4v12M4 10h12" strokeLinecap="round" />

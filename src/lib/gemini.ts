@@ -1,7 +1,7 @@
 // Appel direct à l'API Google Generative Language (Gemini) en backend,
 // sans SDK, pour garder les choses simples et légères.
 
-const TEXT_MODEL = process.env.IDEAS_TEXT_MODEL || "gemini-3.5-flash";
+const TEXT_MODEL = process.env.IDEAS_TEXT_MODEL || "gemini-flash-latest";
 // "gemini-flash-latest" est l'alias Google qui pointe toujours vers le
 // dernier modèle Flash en date : pas de version à mettre à jour à la main
 // quand un nouveau Flash sort. L'audio a son propre modèle (distinct de
@@ -388,5 +388,84 @@ ${KIT_SCHEMA_HINT}`;
     mvpCoreFeatures: k.mvpCoreFeatures.map(String).slice(0, 6),
     mvpNiceToHave: k.mvpNiceToHave.map(String).slice(0, 4),
     mvpFirstMilestone: k.mvpFirstMilestone.slice(0, 300),
+  };
+}
+
+export type JobOfferAnalysis = {
+  isJobOffer: boolean;
+  title: string;
+  company: string | null;
+  location: string | null;
+  contractType: string | null;
+  salary: string | null;
+  contact: string | null;
+  summary: string;
+  skills: string[];
+  score: number; // 0-100 : qualité / crédibilité de l'annonce
+};
+
+const JOB_SCHEMA_HINT = `Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
+{
+  "isJobOffer": true,
+  "title": "intitulé du poste ou de la mission",
+  "company": "entreprise ou null si inconnue",
+  "location": "lieu (ex: Abidjan, Cocody) ou null",
+  "contractType": "CDI, CDD, stage, freelance, mission ponctuelle... ou null",
+  "salary": "salaire/rémunération si mentionné, sinon null",
+  "contact": "contact / comment postuler, ou null",
+  "summary": "résumé de l'offre en 2 phrases max",
+  "skills": ["compétence 1", "compétence 2"],
+  "score": 0
+}
+"isJobOffer" vaut false si le message N'EST PAS une offre d'emploi / mission /
+prestation recherchée (discussion, pub non-emploi, salut, lien seul, image sans
+texte...). Dans ce cas mets des champs vides et score 0.`;
+
+/**
+ * Analyse un message WhatsApp pour dire si c'est une offre d'emploi et
+ * l'extraire en structuré. Contexte ivoirien comme le reste de l'app.
+ */
+export async function analyzeJobMessage(messageBody: string): Promise<JobOfferAnalysis> {
+  const prompt = `Tu es un assistant qui trie des messages WhatsApp de groupes d'emploi
+ivoiriens ("Opportunités emploi et services", "Emploi-Business-Vente").
+Message à analyser :
+---
+${messageBody.slice(0, 2000)}
+---
+
+${IVORY_COAST_CONTEXT}
+
+Rédige en français.
+${JOB_SCHEMA_HINT}`;
+
+  const parsed = await callGeminiJSON(TEXT_MODEL, [{ text: prompt }], 0.3);
+  const p = parsed as Partial<JobOfferAnalysis> & { isJobOffer?: unknown };
+  if (typeof p.isJobOffer !== "boolean") throw new Error("Réponse Gemini incomplète (job)");
+  if (!p.isJobOffer) {
+    return {
+      isJobOffer: false,
+      title: "",
+      company: null,
+      location: null,
+      contractType: null,
+      salary: null,
+      contact: null,
+      summary: "",
+      skills: [],
+      score: 0,
+    };
+  }
+  return {
+    isJobOffer: true,
+    title: typeof p.title === "string" ? p.title.slice(0, 150) : "Offre d'emploi",
+    company: typeof p.company === "string" && p.company ? p.company.slice(0, 150) : null,
+    location: typeof p.location === "string" && p.location ? p.location.slice(0, 150) : null,
+    contractType: typeof p.contractType === "string" && p.contractType ? p.contractType.slice(0, 80) : null,
+    salary: typeof p.salary === "string" && p.salary ? p.salary.slice(0, 150) : null,
+    contact: typeof p.contact === "string" && p.contact ? p.contact.slice(0, 300) : null,
+    summary: typeof p.summary === "string" ? p.summary.slice(0, 500) : "",
+    skills: Array.isArray(p.skills) ? p.skills.map(String).slice(0, 8) : [],
+    score:
+      typeof p.score === "number" ? Math.max(0, Math.min(100, Math.round(p.score))) : 50,
   };
 }

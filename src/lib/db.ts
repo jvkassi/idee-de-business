@@ -72,6 +72,23 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (idea_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS job_offers (
+    id SERIAL PRIMARY KEY,
+    source_group TEXT NOT NULL,
+    group_chat_id TEXT NOT NULL,
+    wa_message_id TEXT NOT NULL UNIQUE,
+    author TEXT,
+    body TEXT NOT NULL,
+    posted_at TIMESTAMPTZ,
+    ai_status TEXT NOT NULL DEFAULT 'pending',
+    ai_json TEXT,
+    ai_score INTEGER,
+    ai_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_job_offers_group ON job_offers(source_group);
+  CREATE INDEX IF NOT EXISTS idx_job_offers_posted ON job_offers(posted_at DESC);
 `;
 
 function makeConnectionString(): string {

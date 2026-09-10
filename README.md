@@ -51,11 +51,27 @@ au premier appel).
 4. **Variables d'environnement** restantes à définir sur le projet Vercel :
    - `GEMINI_API_KEY`
    - `SESSION_SECRET` (chaîne aléatoire longue, ex: `openssl rand -hex 32`)
-   - `IDEAS_TEXT_MODEL` (optionnel, défaut `gemini-3.5-flash`)
-   - `IDEAS_IMAGE_MODEL` (optionnel, défaut `gemini-3.1-flash-image`)
+    - `IDEAS_TEXT_MODEL` (optionnel, défaut `gemini-flash-latest`)
+    - `IDEAS_IMAGE_MODEL` (optionnel, défaut `gemini-3.1-flash-image`)
+    - `WAHA_BASE_URL` (optionnel, défaut `https://bot.labs.synelia.tech`)
+    - `WAHA_API_KEY` — clé API WAHA (offres d'emploi WhatsApp)
+    - `WAHA_SESSION` (optionnel, défaut `Etd0MVpT9b`)
+    - `CRON_SECRET` (optionnel, protège `/api/jobs/sync`)
 5. Déployer (`vercel deploy --prod`, ou push sur `main` — voir CI/CD
    ci-dessous). Le schéma Postgres (tables + catégories) est créé
    automatiquement au premier appel — aucune migration manuelle à lancer.
+
+## Offres d'emploi WhatsApp (WAHA + Gemini)
+
+La page `/jobs` affiche les offres détectées par Gemini dans 2 groupes
+WhatsApp suivis via WAHA (session `Etd0MVpT9b`) : *Opportunités emploi et
+services VH AGM* et *Emploi-Business-Vente*.
+
+- **Synchro manuelle** : bouton "Synchroniser" sur `/jobs`, ou
+  `POST /api/jobs/sync?limit=20`.
+- **Temps réel** : déclarer le webhook WAHA
+  `https://<domaine>/api/jobs/whatsapp` (event `message.any`) sur la session.
+- **Cron Vercel** : `vercel.json` planifie `/api/jobs/sync` toutes les 2 h.
 
 Sur Vercel, si `DATABASE_URL` n'est pas défini, l'app refuse de servir une
 requête base de données plutôt que d'échouer silencieusement.
