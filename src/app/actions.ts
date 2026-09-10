@@ -344,3 +344,9 @@ export async function retryCoverAction(ideaId: number): Promise<void> {
   await retryCoverGeneration(ideaId);
   revalidatePath(`/ideas/${ideaId}`);
 }
+
+export async function syncJobsAction(): Promise<void> {
+  const { syncJobOffers } = await import("@/lib/jobOffers");
+  await syncJobOffers(20);
+  revalidatePath("/jobs");
+}

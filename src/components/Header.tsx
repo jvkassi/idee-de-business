@@ -36,6 +36,9 @@ export default function Header({ user }: { user: SessionUser | null }) {
             <Link href="/ideas" className={`${NAV_LINK} inline-flex`}>
               Explorer
             </Link>
+            <Link href="/jobs" className={`${NAV_LINK} inline-flex`}>
+              Emplois
+            </Link>
             <Link href="/faq" className={`${NAV_LINK} hidden sm:inline-flex`}>
               FAQ
             </Link>
