@@ -63,6 +63,8 @@ async function saveProfile(userId: number, p: CandidateProfile): Promise<void> {
       p.email,
     ],
   );
+  // Le profil a changé : les anciens matchs ne veulent plus rien dire.
+  await query("DELETE FROM job_matches WHERE user_id = $1", [userId]);
 }
 
 /** "Raconte-toi" : un texte libre devient un joli profil. */

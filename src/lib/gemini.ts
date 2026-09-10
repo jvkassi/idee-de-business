@@ -434,6 +434,12 @@ export type JobOfferAnalysis = {
   contractType: string | null;
   salary: string | null;
   contact: string | null;
+  /** Canaux de candidature structurés : mail / numéro / lien cliquable. */
+  emails: string[];
+  phones: string[];
+  urls: string[];
+  /** Marche à suivre pour postuler en une phrase (ex: "Envoyez CV sur WhatsApp"). */
+  howToApply: string | null;
   summary: string;
   skills: string[];
   score: number; // 0-100 : qualité / crédibilité de l'annonce
@@ -448,10 +454,17 @@ const JOB_SCHEMA_HINT = `Réponds UNIQUEMENT avec un objet JSON valide, sans tex
   "contractType": "CDI, CDD, stage, freelance, mission ponctuelle... ou null",
   "salary": "salaire/rémunération si mentionné, sinon null",
   "contact": "contact / comment postuler, ou null",
+  "emails": ["mail tel quel, même obfusqué type 'contact arobase gmail point com' -> contact@gmail.com"],
+  "phones": ["numéros au format +2250707070707 si ivoirien, sinon +indicatif..."],
+  "urls": ["liens https://... ou www.... vers formulaire / candidature"],
+  "howToApply": "marche à suivre en une phrase, ou null",
   "summary": "résumé de l'offre en 2 phrases max",
   "skills": ["compétence 1", "compétence 2"],
   "score": 0
 }
+IMPORTANT : recopie TOUS les moyens de postuler présents dans le texte
+(mail, numéro WhatsApp/téléphone même écrit "zero sept...", lien). Ne les
+invente jamais : tableau vide si aucun.
 "isJobOffer" vaut false si le message N'EST PAS une offre d'emploi / mission /
 prestation recherchée (discussion, pub non-emploi, salut, lien seul, image sans
 texte...). Dans ce cas mets des champs vides et score 0.`;
@@ -463,9 +476,9 @@ texte...). Dans ce cas mets des champs vides et score 0.`;
 export async function analyzeJobMessage(messageBody: string): Promise<JobOfferAnalysis> {
   const prompt = `Tu es un assistant qui trie des messages WhatsApp de groupes d'emploi
 ivoiriens ("Opportunités emploi et services", "Emploi-Business-Vente").
-Message à analyser :
+Message à analyser (peut regrouper plusieurs messages WhatsApp successifs du même auteur) :
 ---
-${messageBody.slice(0, 2000)}
+${messageBody.slice(0, 4000)}
 ---
 
 ${IVORY_COAST_CONTEXT}
@@ -485,11 +498,17 @@ ${JOB_SCHEMA_HINT}`;
       contractType: null,
       salary: null,
       contact: null,
+      emails: [],
+      phones: [],
+      urls: [],
+      howToApply: null,
       summary: "",
       skills: [],
       score: 0,
     };
   }
+  const strList = (v: unknown): string[] =>
+    Array.isArray(v) ? v.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 5) : [];
   return {
     isJobOffer: true,
     title: typeof p.title === "string" ? p.title.slice(0, 150) : "Offre d'emploi",
@@ -498,6 +517,11 @@ ${JOB_SCHEMA_HINT}`;
     contractType: typeof p.contractType === "string" && p.contractType ? p.contractType.slice(0, 80) : null,
     salary: typeof p.salary === "string" && p.salary ? p.salary.slice(0, 150) : null,
     contact: typeof p.contact === "string" && p.contact ? p.contact.slice(0, 300) : null,
+    emails: strList(p.emails),
+    phones: strList(p.phones),
+    urls: strList(p.urls),
+    howToApply:
+      typeof p.howToApply === "string" && p.howToApply ? p.howToApply.slice(0, 300) : null,
     summary: typeof p.summary === "string" ? p.summary.slice(0, 500) : "",
     skills: Array.isArray(p.skills) ? p.skills.map(String).slice(0, 8) : [],
     score:
@@ -706,4 +730,57 @@ juste une version soignée, pas une autre personne. Pas de texte dans l'image.`;
     if (inline?.data && inline.mimeType) return { mimeType: inline.mimeType, base64: inline.data };
   }
   throw new Error("Aucune image retournée par Gemini");
+}
+
+export type JobMatchInput = {
+  id: number;
+  title: string;
+  summary: string;
+  skills: string[];
+  location: string | null;
+  contractType: string | null;
+};
+
+export type JobMatch = { id: number; score: number; reason: string };
+
+/**
+ * Matche un profil contre plusieurs offres EN UN SEUL appel : pour chaque
+ * offre, un score 0-100 + une raison d'une phrase. Amical, honnête.
+ */
+export async function matchJobsToProfile(
+  profile: CandidateProfile,
+  offers: JobMatchInput[],
+): Promise<JobMatch[]> {
+  if (offers.length === 0) return [];
+  const offersText = offers
+    .slice(0, 15)
+    .map(
+      (o) =>
+        `#${o.id} | ${o.title} | ${o.location ?? "?"} | ${o.contractType ?? "?"} | skills: ${o.skills.join(", ") || "?"} | ${o.summary.slice(0, 300)}`,
+    )
+    .join("\n");
+  const prompt = `Tu es Djossi, qui aide un candidat en Côte d'Ivoire. Voici son
+profil (JSON) :
+${JSON.stringify(profile).slice(0, 2500)}
+
+Et des offres d'emploi :
+${offersText}
+
+Pour CHAQUE offre, donne un score de compatibilité 0-100 (expérience,
+compétences, zone, réalisme — sois honnête, pas gonflé) et une raison d'UNE
+phrase, chaleureuse, en tutoyant ("tu").
+
+Réponds UNIQUEMENT avec un objet JSON valide :
+{"matches": [{"id": 12, "score": 85, "reason": "..."}]}`;
+  const parsed = await callGeminiJSON(TEXT_MODEL, [{ text: prompt }], 0.4);
+  const list = (parsed as { matches?: unknown })?.matches;
+  if (!Array.isArray(list)) throw new Error("Matching vide");
+  return list
+    .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
+    .map((m) => ({
+      id: Number(m.id),
+      score: typeof m.score === "number" ? Math.max(0, Math.min(100, Math.round(m.score))) : 0,
+      reason: typeof m.reason === "string" ? m.reason.slice(0, 200) : "",
+    }))
+    .filter((m) => Number.isFinite(m.id));
 }

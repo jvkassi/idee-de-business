@@ -155,6 +155,17 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_cvs_user ON cvs(user_id);
+
+  -- Match profil ↔ offres : calculé par Gemini en un seul appel pour toute
+  -- la page, stocké ici. Supprimé dès que le profil change (recalcul frais).
+  CREATE TABLE IF NOT EXISTS job_matches (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    job_offer_id INTEGER NOT NULL REFERENCES job_offers(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, job_offer_id)
+  );
 `;
 
 function makeConnectionString(): string {
