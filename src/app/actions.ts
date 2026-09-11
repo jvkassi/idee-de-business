@@ -431,3 +431,27 @@ export async function enhancePhotoAction(): Promise<EnhancePhotoResult> {
   revalidatePath("/profil");
   return { ok: true };
 }
+
+export type ReportOfferResult = { ok: true; duplicate?: true } | { error: string };
+
+/**
+ * Signaler une offre d'emploi suspecte. Autorisé sans compte (userId null)
+ * pour ne pas freiner la lutte contre les arnaques.
+ */
+export async function reportOfferAction(jobOfferId: number, reason: string): Promise<ReportOfferResult> {
+  const session = await getSession();
+  const { fileReport } = await import("@/lib/reports");
+  try {
+    const result = await fileReport(jobOfferId, reason, session?.id ?? null);
+    if (result.duplicate) return { ok: true, duplicate: true };
+    revalidatePath("/jobs");
+    return { ok: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Impossible d'envoyer le signalement." };
+  }
+}
+
+/** Adaptateur formulaire (les actions de <form> doivent rendre void). */
+export async function reportOfferFormAction(jobOfferId: number, reason: string): Promise<void> {
+  await reportOfferAction(jobOfferId, reason);
+}

@@ -103,6 +103,8 @@ export type JobOffer = {
   aiScore: number | null;
   aiError: string | null;
   createdAt: string;
+  /** Offre déposée directement (pas de matching IA dessus pour l'instant). */
+  direct?: boolean;
 };
 
 function parseAnalysis(raw: unknown): JobOfferAnalysis | null {
@@ -149,13 +151,67 @@ function toJobOffer(r: Record<string, unknown>): JobOffer {
   };
 }
 
+function directToJobOffer(r: Record<string, unknown>): JobOffer {
+  const id = Number(r.id);
+  const contact = String(r.contact ?? "");
+  const description = String(r.description ?? "");
+  const at = String(r.created_at);
+  return {
+    id: -id,
+    sourceGroup: "Djossi",
+    groupChatId: "",
+    waMessageId: `direct-${id}`,
+    author: null,
+    authorPhone: null,
+    body: `${description}\n\nContact : ${contact}`.trim(),
+    postedAt: at,
+    aiStatus: "done",
+    ai: {
+      isJobOffer: true,
+      title: String(r.title ?? "Offre d'emploi").slice(0, 150),
+      company: r.company ? String(r.company) : null,
+      location: r.location ? String(r.location) : null,
+      contractType: r.contract_type ? String(r.contract_type) : null,
+      salary: r.salary ? String(r.salary) : null,
+      contact: contact.slice(0, 300) || null,
+      emails: [],
+      phones: [],
+      urls: [],
+      howToApply: null,
+      summary: description.slice(0, 500),
+      skills: [],
+      score: 85,
+    },
+    aiScore: 85,
+    aiError: null,
+    createdAt: at,
+    direct: true,
+  };
+}
+
 export async function listJobOffers(limit = 50): Promise<JobOffer[]> {
   await ready();
   const rows = await query(
     `SELECT * FROM job_offers ORDER BY COALESCE(posted_at, created_at) DESC LIMIT $1`,
     [limit],
   );
-  return rows.map((r) => toJobOffer(r as Record<string, unknown>));
+  const offers = rows.map((r) => toJobOffer(r as Record<string, unknown>));
+  // Offres déposées directement (relues par Djossi) : elles vivent avec les autres.
+  try {
+    const direct = await query(
+      `SELECT * FROM direct_offers WHERE status = 'published' ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    for (const r of direct) offers.push(directToJobOffer(r as Record<string, unknown>));
+  } catch {
+    // Table pas encore créée : rien à fusionner.
+  }
+  offers.sort((a, b) => {
+    const ta = new Date(a.postedAt ?? a.createdAt).getTime();
+    const tb = new Date(b.postedAt ?? b.createdAt).getTime();
+    return tb - ta;
+  });
+  return offers.slice(0, Math.max(1, limit));
 }
 
 /**
@@ -287,6 +343,7 @@ export type SyncResult = {
  */
 export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
   await ready();
+  const startedAt = Math.floor(Date.now() / 1000);
   // Résolution LID → numéro en un seul appel (bouton "Écrire en privé").
   const lidMap = await getLidToPhoneMap();
   const groups: SyncResult["groups"] = [];
@@ -294,6 +351,13 @@ export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
     const chatId = await resolveGroupChatId(g.name, g.chatId);
     // downloadMedia=true : l'IA lit les flyers/PDF (souvent toute l'annonce).
     const messages = await getGroupMessages(chatId, limitPerGroup, true);
+    // Archive brute (rejouable pour ré-analyse future), best-effort.
+    try {
+      const { storeRawMessages } = await import("./waArchive");
+      await storeRawMessages(chatId, messages);
+    } catch {
+      // L'archive ne doit jamais bloquer la synchro.
+    }
     const threads = buildMessageThreads(messages);
     let created = 0;
     let skipped = 0;
@@ -305,6 +369,19 @@ export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
     groups.push({ group: g.name, chatId, fetched: messages.length, created, skipped });
   }
   await backfillAuthorPhones(lidMap);
+  // Alertes push des nouvelles offres matchées (best-effort, jamais bloquant).
+  try {
+    const fresh = await query<{ id: number }>(
+      "SELECT id FROM job_offers WHERE ai_status = 'done' AND created_at > to_timestamp($1) LIMIT 20",
+      [startedAt],
+    );
+    if (fresh.length > 0) {
+      const { processNewMatches } = await import("./jobAlerts");
+      await processNewMatches(fresh.map((r) => Number(r.id)));
+    }
+  } catch {
+    // Les alertes ne doivent jamais bloquer la synchro.
+  }
   return { groups };
 }
 

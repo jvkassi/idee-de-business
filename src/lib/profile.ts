@@ -175,3 +175,35 @@ async function setProfilePhoto(userId: number, url: string): Promise<void> {
     [userId, url],
   );
 }
+
+/**
+ * Vrai si le profil contient le moindre champ significatif rempli
+ * (chaîne non vide / tableau non vide). Un profil null/undefined → false.
+ * Sert à distinguer "jamais commencé" de "commencé mais incomplet" côté /jobs.
+ */
+export function profileHasContent(p: Profile | CandidateProfile | null | undefined): boolean {
+  if (!p) return false;
+  const hasText = (v: unknown): boolean => typeof v === "string" && v.trim().length > 0;
+  const hasItems = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
+  return (
+    hasText(p.headline) ||
+    hasText(p.summary) ||
+    hasItems(p.skills) ||
+    hasItems(p.experience) ||
+    hasItems(p.education) ||
+    hasItems(p.languages) ||
+    hasText(p.location) ||
+    hasText(p.phone) ||
+    hasText(p.email) ||
+    hasText((p as Profile).photoUrl)
+  );
+}
+
+/**
+ * Règle stricte pour le matching IA : le profil est exploitable seulement
+ * s'il a un titre, un résumé ou au moins une compétence.
+ */
+export function profileReadyToMatch(p: Profile | CandidateProfile | null | undefined): boolean {
+  if (!p) return false;
+  return Boolean(p.headline || p.summary || (p.skills?.length ?? 0) > 0);
+}

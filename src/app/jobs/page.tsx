@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { listJobOffers } from "@/lib/jobOffers";
 import { getSession } from "@/lib/session";
-import { getProfile } from "@/lib/profile";
+import { getProfile, profileHasContent, profileReadyToMatch } from "@/lib/profile";
+import { reportOfferFormAction } from "@/app/actions";
+import { REPORT_REASONS } from "@/lib/reports";
 import { ensureMatches, type MatchMap } from "@/lib/matching";
 import {
   resolveApplyChannels,
@@ -76,17 +78,21 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   }
   const contrats = [...contratCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
-  // Matchs persos : seulement si connecté avec un profil rempli.
+  // Matchs persos : seulement si connecté avec un profil assez rempli.
+  // Le rappel "crée ton profil" disparaît dès qu'il existe un début de profil.
   let matches: MatchMap = new Map();
   let hasProfile = false;
   if (user) {
     const profile = await getProfile(user.id);
-    hasProfile = !!profile && Boolean(profile.headline || profile.summary || profile.skills.length > 0);
-    if (hasProfile && profile) {
+    hasProfile = profileHasContent(profile);
+    if (profileReadyToMatch(profile) && profile) {
       matches = await ensureMatches(
         user.id,
         profile,
-        analyzed.slice(0, 15).map((o) => ({
+        analyzed
+          .filter((o) => !o.direct)
+          .slice(0, 15)
+          .map((o) => ({
           id: o.id,
           title: o.ai?.title ?? o.body.slice(0, 80),
           summary: o.ai?.summary ?? o.body.slice(0, 300),
@@ -107,7 +113,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             Offres d&apos;emploi
           </h1>
           <p className="mt-1 text-sm text-ink-2">
-            {analyzed.length} offre{analyzed.length > 1 ? "s" : ""} vérifiée{analyzed.length > 1 ? "s" : ""} par
+            {analyzed.length} offre{analyzed.length > 1 ? "s" : ""} relue{analyzed.length > 1 ? "s" : ""} par
             Djossi, mises à jour automatiquement.
           </p>
           {user && !hasProfile && (
@@ -120,6 +126,9 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             </p>
           )}
         </div>
+        <Link href="/publier" className="btn btn-outline shrink-0 px-4 py-2 text-sm">
+          Tu recrutes ? Publie une offre
+        </Link>
       </div>
 
       <form method="get" action="/jobs" role="search" className="flex gap-2">
@@ -204,7 +213,13 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             <li key={o.id} className="card p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
                 {o.ai?.contractType && (
-                  <span className="rounded-full bg-sun-soft px-2 py-0.5 font-medium">{o.ai.contractType}</span>
+                  <Link
+                    href={hrefWith(base, { contrat: o.ai.contractType === contrat ? undefined : o.ai.contractType })}
+                    title="Filtrer par ce contrat"
+                    className="rounded-full bg-sun-soft px-2 py-0.5 font-medium hover:underline"
+                  >
+                    {o.ai.contractType}
+                  </Link>
                 )}
                 {match ? (
                   <span
@@ -214,7 +229,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                     ✨ {match.score}% pour toi
                   </span>
                 ) : (
-                  o.aiScore !== null && (
+                  o.aiScore !== null &&
+                  o.aiScore >= 40 && (
                     <span
                       className="ml-auto font-mono font-bold tabular-nums text-ink"
                       title="Score de qualité Djossi"
@@ -253,11 +269,6 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                       className="btn btn-sun px-3 py-2 text-sm"
                     >
                       WhatsApp {p}
-                    </a>
-                  ))}
-                  {apply.phones.map((p) => (
-                    <a key={`tel-${p}`} href={`tel:${p.replace(/\s/g, "")}`} className="btn px-3 py-2 text-sm">
-                      📞 Appeler
                     </a>
                   ))}
                   {apply.emails.map((e) => (
@@ -328,6 +339,21 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                 <p className="mt-1 whitespace-pre-wrap border-l-[3px] border-line-2 pl-3">
                   {formatOfferBody(o.body)}
                 </p>
+              </details>
+              <details className="mt-2 text-sm">
+                <summary className="cursor-pointer text-xs font-medium text-ink-3 hover:text-bad">
+                  Signaler un problème
+                </summary>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {REPORT_REASONS.map((r) => (
+                    <form key={r} action={reportOfferFormAction.bind(null, o.id, r)}>
+                      <button type="submit" className="chip text-xs">
+                        {r}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-ink-3">Djossi relit chaque signalement.</p>
               </details>
             </li>
             );
