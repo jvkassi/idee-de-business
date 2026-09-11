@@ -288,7 +288,7 @@ export type SyncResult = {
 export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
   await ready();
   // Résolution LID → numéro en un seul appel (bouton "Écrire en privé").
-  const lidMap = await getLidToPhoneMap(3000);
+  const lidMap = await getLidToPhoneMap();
   const groups: SyncResult["groups"] = [];
   for (const g of JOB_SOURCE_GROUPS) {
     const chatId = await resolveGroupChatId(g.name, g.chatId);
@@ -314,7 +314,7 @@ export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
  */
 export async function backfillAuthorPhones(lidMap?: Map<string, string> | null): Promise<number> {
   await ready();
-  const map = lidMap ?? (await getLidToPhoneMap(3000));
+  const map = lidMap ?? (await getLidToPhoneMap());
   if (map.size === 0) return 0;
   const rows = await query<{ id: number; author: string | null }>(
     "SELECT id, author FROM job_offers WHERE author_phone IS NULL AND author IS NOT NULL LIMIT 200",

@@ -139,16 +139,24 @@ export async function resolveGroupChatId(groupName: string, fallbackId: string):
  * `@lid` opaque, cette route rend leur vrai numéro pour les offres "PV".
  * Best-effort : liste vide si la route est indisponible.
  */
-export async function getLidToPhoneMap(limit = 2000): Promise<Map<string, string>> {
+export async function getLidToPhoneMap(limit = 5000): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   try {
-    const raw = await wahaFetch<Array<{ lid?: unknown; pn?: unknown }>>(
-      `/api/${session()}/lids?limit=${Math.max(1, Math.min(5000, limit))}`,
-    );
-    for (const e of raw) {
-      if (typeof e.lid === "string" && typeof e.pn === "string") {
-        map.set(e.lid.trim().toLowerCase(), e.pn.trim());
+    // Pagnie jusqu'à épuisement : un auteur PV hors première page = bouton perdu.
+    const pageSize = 1000;
+    let offset = 0;
+    for (let page = 0; page < 10; page++) {
+      const raw = await wahaFetch<Array<{ lid?: unknown; pn?: unknown }>>(
+        `/api/${session()}/lids?limit=${pageSize}&offset=${offset}`,
+      );
+      if (raw.length === 0) break;
+      for (const e of raw) {
+        if (typeof e.lid === "string" && typeof e.pn === "string") {
+          map.set(e.lid.trim().toLowerCase(), e.pn.trim());
+        }
       }
+      if (raw.length < pageSize || map.size >= Math.max(1, Math.min(20000, limit))) break;
+      offset += pageSize;
     }
   } catch {
     // Pas bloquant : les offres PV resteront sans bouton direct.
