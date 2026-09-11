@@ -1,8 +1,17 @@
 import { after } from "next/server";
 import { query, ready } from "./db";
-import { JOB_SOURCE_GROUPS, getGroupMessages, resolveGroupChatId, type WahaMessage } from "./waha";
+import {
+  JOB_SOURCE_GROUPS,
+  MAX_ATTACHMENTS,
+  downloadMediaFile,
+  getGroupMessages,
+  getLidToPhoneMap,
+  resolveGroupChatId,
+  type MediaAttachment,
+  type WahaMessage,
+} from "./waha";
 import { analyzeJobMessage, type JobOfferAnalysis } from "./gemini";
-import { THREAD_SEPARATOR } from "./applyChannels";
+import { THREAD_SEPARATOR, jidToPhone, normalizePhone } from "./applyChannels";
 
 /** Une offre est souvent fractionnée : même auteur, messages rapprochés. */
 export const THREAD_GAP_SEC = 15 * 60;
@@ -12,12 +21,21 @@ export function threadAuthor(m: Pick<WahaMessage, "participant" | "from">): stri
   return (m.participant ?? m.from ?? "").trim().toLowerCase();
 }
 
-export type MessageThread = { thread: WahaMessage; partIds: string[] };
+export type MessageThread = {
+  thread: WahaMessage;
+  partIds: string[];
+  media: Array<{ url: string; mime?: string }>;
+};
+
+function threadMedia(m: WahaMessage): Array<{ url: string; mime?: string }> {
+  return m.hasMedia && m.mediaUrl ? [{ url: m.mediaUrl, mime: m.mediaMime }] : [];
+}
 
 /**
  * Recolle les messages successifs d'un même auteur (fenêtre de 15 min,
  * 6000 caractères max) en un seul thread analysable. Les messages sont
  * triés chronologiquement ; l'ID du thread = ID du premier message.
+ * Les pièces jointes (flyers, PDF) suivent le thread pour l'IA.
  */
 export function buildMessageThreads(messages: WahaMessage[]): MessageThread[] {
   const sorted = [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -32,12 +50,43 @@ export function buildMessageThreads(messages: WahaMessage[]): MessageThread[] {
       if (sameAuthor && gap >= 0 && gap <= THREAD_GAP_SEC && mergedLen <= MAX_THREAD_CHARS) {
         last.thread = { ...last.thread, body: `${last.thread.body}${THREAD_SEPARATOR}${m.body}` };
         last.partIds.push(m.id);
+        for (const a of threadMedia(m)) {
+          if (last.media.length < MAX_ATTACHMENTS && !last.media.some((x) => x.url === a.url)) {
+            last.media.push(a);
+          }
+        }
         continue;
       }
     }
-    out.push({ thread: { ...m }, partIds: [m.id] });
+    out.push({ thread: { ...m }, partIds: [m.id], media: threadMedia(m) });
   }
   return out;
+}
+
+/** Télécharge les pièces du thread pour l'IA (best-effort, plafonné). */
+async function fetchThreadAttachments(t: MessageThread): Promise<MediaAttachment[]> {
+  const out: MediaAttachment[] = [];
+  for (const a of t.media.slice(0, MAX_ATTACHMENTS)) {
+    const dl = await downloadMediaFile(a.url);
+    if (dl) out.push(dl);
+  }
+  return out;
+}
+
+/**
+ * Numéro de l'auteur pour les offres "en privé" : direct si le JID porte un
+ * numéro (@c.us), sinon via la table LID→numéro de WAHA.
+ */
+export function resolveAuthorPhone(
+  authorJid: string | null | undefined,
+  lidMap?: Map<string, string> | null,
+): string | null {
+  const direct = jidToPhone(authorJid);
+  if (direct) return direct;
+  const lid = (authorJid ?? "").trim().toLowerCase();
+  const pn = lid && lidMap ? lidMap.get(lid) : undefined;
+  if (!pn) return null;
+  return normalizePhone(pn) ?? null;
 }
 
 export type JobOffer = {
@@ -46,6 +95,7 @@ export type JobOffer = {
   groupChatId: string;
   waMessageId: string;
   author: string | null;
+  authorPhone: string | null;
   body: string;
   postedAt: string | null;
   aiStatus: "pending" | "done" | "failed" | "skipped";
@@ -88,6 +138,7 @@ function toJobOffer(r: Record<string, unknown>): JobOffer {
     groupChatId: String(r.group_chat_id),
     waMessageId: String(r.wa_message_id),
     author: r.author ? String(r.author) : null,
+    authorPhone: r.author_phone ? String(r.author_phone) : null,
     body: String(r.body),
     postedAt: r.posted_at ? String(r.posted_at) : null,
     aiStatus: String(r.ai_status || "pending") as JobOffer["aiStatus"],
@@ -107,28 +158,35 @@ export async function listJobOffers(limit = 50): Promise<JobOffer[]> {
   return rows.map((r) => toJobOffer(r as Record<string, unknown>));
 }
 
-/** Messages trop courts / médias sans texte : pas la peine d'appeler Gemini. */
-function isAnalyzable(m: Pick<WahaMessage, "body">): boolean {
+/**
+ * L'IA tranche : un texte trop court seul ne vaut pas l'appel, sauf si une
+ * image/PDF l'accompagne (flyer = souvent toute l'annonce).
+ */
+function isAnalyzable(m: { body: string; mediaCount?: number }): boolean {
   const text = m.body.trim();
-  if (text.length < 30) return false;
-  // Liens seuls, "ok", "merci", etc.
-  if (/^(https?:\/\/\S+)$/.test(text)) return false;
-  return true;
+  if (text.length >= 30 && !/^(https?:\/\/\S+)$/.test(text)) return true;
+  // Texte court ou vide mais image/PDF jointe : l'IA lit le flyer.
+  return (m.mediaCount ?? 0) > 0;
 }
 
-async function runAnalysis(rowId: number, body: string): Promise<"created" | "skipped"> {
+async function runAnalysis(
+  rowId: number,
+  body: string,
+  attachments: MediaAttachment[] = [],
+): Promise<"created" | "skipped"> {
   try {
-    const analysis = await analyzeJobMessage(body);
+    const analysis = await analyzeJobMessage(body, attachments);
     if (!analysis.isJobOffer) {
-      await query("UPDATE job_offers SET ai_status = 'skipped', ai_json = $1 WHERE id = $2", [
+      await query("UPDATE job_offers SET ai_status = 'skipped', ai_json = $1, ai_media = $2 WHERE id = $3", [
         JSON.stringify(analysis),
+        attachments.length,
         rowId,
       ]);
       return "skipped";
     }
     await query(
-      "UPDATE job_offers SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_error = NULL WHERE id = $3",
-      [JSON.stringify(analysis), analysis.score, rowId],
+      "UPDATE job_offers SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_media = $3, ai_error = NULL WHERE id = $4",
+      [JSON.stringify(analysis), analysis.score, attachments.length, rowId],
     );
     return "created";
   } catch (err) {
@@ -158,48 +216,64 @@ async function analyzeAndStoreThread(
   chatId: string,
   m: WahaMessage,
   partIds: string[],
+  lidMap?: Map<string, string> | null,
+  media?: Array<{ url: string; mime?: string }>,
 ): Promise<"created" | "skipped" | "exists"> {
   await ready();
   const body = m.body.slice(0, MAX_THREAD_CHARS);
   const author = m.participant ?? m.from ?? null;
+  const authorPhone = resolveAuthorPhone(author, lidMap);
+  const attachments = await fetchThreadAttachments({ thread: m, partIds, media: media ?? [] });
 
-  const already = await query<{ id: number; body: string; wa_message_id: string }>(
-    "SELECT id, body, wa_message_id FROM job_offers WHERE wa_message_id = ANY($1)",
+  const already = await query<{ id: number; body: string; wa_message_id: string; ai_media: number | null }>(
+    "SELECT id, body, wa_message_id, ai_media FROM job_offers WHERE wa_message_id = ANY($1)",
     [partIds],
   );
   if (already.length > 0) {
-    // Thread déjà stocké : si le corps a grandi (suite reçue), on met à jour + ré-analyse.
+    // Thread déjà stocké : on ré-analyse si le corps a grandi OU si des
+    // pièces jointes arrivent après coup (webhook texte d'abord, médias à la synchro).
     const main =
       already.find((r) => String(r.wa_message_id) === m.id) ?? already.sort((a, b) => a.id - b.id)[0];
     const mainId = Number(main.id);
-    if (String(main.body ?? "") !== body && isAnalyzable({ body })) {
-      await query("UPDATE job_offers SET body = $1, ai_status = 'pending', ai_error = NULL WHERE id = $2", [
-        body,
+    const seenMedia = Number(main.ai_media ?? 0);
+    if (
+      (String(main.body ?? "") !== body || attachments.length > seenMedia) &&
+      isAnalyzable({ body, mediaCount: attachments.length })
+    ) {
+      await query(
+        "UPDATE job_offers SET body = $1, author_phone = COALESCE(author_phone, $2), ai_status = 'pending', ai_error = NULL WHERE id = $3",
+        [body, authorPhone, mainId],
+      );
+      return runAnalysis(mainId, body, attachments);
+    }
+    // Même sans nouveau texte, on complète le numéro manquant (résolution LID).
+    if (authorPhone) {
+      await query("UPDATE job_offers SET author_phone = $1 WHERE id = $2 AND author_phone IS NULL", [
+        authorPhone,
         mainId,
       ]);
-      return runAnalysis(mainId, body);
     }
     return "exists";
   }
 
-  if (!isAnalyzable({ body })) {
+  if (!isAnalyzable({ body, mediaCount: attachments.length })) {
     await query(
-      `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, body, posted_at, ai_status)
-       VALUES ($1, $2, $3, $4, $5, to_timestamp($6), 'skipped')
+      `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, author_phone, body, posted_at, ai_status, ai_media)
+       VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7), 'skipped', $8)
        ON CONFLICT (wa_message_id) DO NOTHING`,
-      [groupName, chatId, m.id, author, body, m.timestamp || null],
+      [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, attachments.length],
     );
     return "skipped";
   }
 
   const inserted = await query<{ id: number }>(
-    `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, body, posted_at, ai_status)
-     VALUES ($1, $2, $3, $4, $5, to_timestamp($6), 'pending')
+    `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, author_phone, body, posted_at, ai_status, ai_media)
+     VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7), 'pending', $8)
      ON CONFLICT (wa_message_id) DO NOTHING RETURNING id`,
-    [groupName, chatId, m.id, author, body, m.timestamp || null],
+    [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, attachments.length],
   );
   if (inserted.length === 0) return "exists";
-  return runAnalysis(Number(inserted[0].id), body);
+  return runAnalysis(Number(inserted[0].id), body, attachments);
 }
 
 export type SyncResult = {
@@ -213,21 +287,47 @@ export type SyncResult = {
  */
 export async function syncJobOffers(limitPerGroup = 20): Promise<SyncResult> {
   await ready();
+  // Résolution LID → numéro en un seul appel (bouton "Écrire en privé").
+  const lidMap = await getLidToPhoneMap(3000);
   const groups: SyncResult["groups"] = [];
   for (const g of JOB_SOURCE_GROUPS) {
     const chatId = await resolveGroupChatId(g.name, g.chatId);
-    const messages = await getGroupMessages(chatId, limitPerGroup);
+    // downloadMedia=true : l'IA lit les flyers/PDF (souvent toute l'annonce).
+    const messages = await getGroupMessages(chatId, limitPerGroup, true);
     const threads = buildMessageThreads(messages);
     let created = 0;
     let skipped = 0;
     for (const t of threads) {
-      const res = await analyzeAndStoreThread(g.name, chatId, t.thread, t.partIds);
+      const res = await analyzeAndStoreThread(g.name, chatId, t.thread, t.partIds, lidMap, t.media);
       if (res === "created") created += 1;
       else if (res === "skipped" || res === "exists") skipped += 1;
     }
     groups.push({ group: g.name, chatId, fetched: messages.length, created, skipped });
   }
+  await backfillAuthorPhones(lidMap);
   return { groups };
+}
+
+/**
+ * Complète les numéros d'auteur manquants (offres "PV" arrivées par webhook
+ * ou avant la résolution LID) sans ré-analyser.
+ */
+export async function backfillAuthorPhones(lidMap?: Map<string, string> | null): Promise<number> {
+  await ready();
+  const map = lidMap ?? (await getLidToPhoneMap(3000));
+  if (map.size === 0) return 0;
+  const rows = await query<{ id: number; author: string | null }>(
+    "SELECT id, author FROM job_offers WHERE author_phone IS NULL AND author IS NOT NULL LIMIT 200",
+  );
+  let fixed = 0;
+  for (const r of rows) {
+    const phone = resolveAuthorPhone(r.author, map);
+    if (phone) {
+      await query("UPDATE job_offers SET author_phone = $1 WHERE id = $2", [phone, Number(r.id)]);
+      fixed += 1;
+    }
+  }
+  return fixed;
 }
 
 /** Planifie une synchro en arrière-plan (webhook WAHA). */

@@ -469,24 +469,38 @@ invente jamais : tableau vide si aucun.
 prestation recherchée (discussion, pub non-emploi, salut, lien seul, image sans
 texte...). Dans ce cas mets des champs vides et score 0.`;
 
+export type JobAttachment = { mimeType: string; base64: string };
+
 /**
- * Analyse un message WhatsApp pour dire si c'est une offre d'emploi et
- * l'extraire en structuré. Contexte ivoirien comme le reste de l'app.
+ * Analyse une annonce d'emploi pour dire si c'est une offre et l'extraire
+ * en structuré. L'IA est première : elle lit le texte ET les pièces jointes
+ * (flyers en image, PDF de recrutement — où vivent souvent le numéro, le
+ * mail et le lieu). Contexte ivoirien comme le reste de l'app.
  */
-export async function analyzeJobMessage(messageBody: string): Promise<JobOfferAnalysis> {
-  const prompt = `Tu es un assistant qui trie des messages WhatsApp de groupes d'emploi
-ivoiriens ("Opportunités emploi et services", "Emploi-Business-Vente").
-Message à analyser (peut regrouper plusieurs messages WhatsApp successifs du même auteur) :
+export async function analyzeJobMessage(
+  messageBody: string,
+  attachments: JobAttachment[] = [],
+): Promise<JobOfferAnalysis> {
+  const files =
+    attachments.length > 0
+      ? `\n${attachments.length} pièce(s) jointe(s) (image/PDF) accompagnent ce texte : lis-les comme partie intégrante de l'annonce. Les flyers contiennent souvent l'essentiel (postes, contact, lieu) même quand le texte est vide. Un sticker, mème ou photo sans rapport avec un emploi n'est PAS une offre.`
+      : "";
+  const prompt = `Tu es Djossi, qui trie des annonces d'emploi ivoiriennes.
+Annonce à analyser (peut regrouper plusieurs messages successifs du même auteur) :
 ---
-${messageBody.slice(0, 4000)}
----
+${messageBody.slice(0, 4000) || "(pas de texte)"}
+---${files}
 
 ${IVORY_COAST_CONTEXT}
 
 Rédige en français.
 ${JOB_SCHEMA_HINT}`;
 
-  const parsed = await callGeminiJSON(TEXT_MODEL, [{ text: prompt }], 0.3);
+  const parts: unknown[] = [{ text: prompt }];
+  for (const a of attachments.slice(0, 3)) {
+    parts.push({ inline_data: { mime_type: a.mimeType, data: a.base64 } });
+  }
+  const parsed = await callGeminiJSON(TEXT_MODEL, parts, 0.3);
   const p = parsed as Partial<JobOfferAnalysis> & { isJobOffer?: unknown };
   if (typeof p.isJobOffer !== "boolean") throw new Error("Réponse Gemini incomplète (job)");
   if (!p.isJobOffer) {

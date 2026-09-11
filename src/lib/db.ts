@@ -196,6 +196,8 @@ const MIGRATIONS = [
   "ALTER TABLE ideas ADD COLUMN IF NOT EXISTS embedding vector(768)",
   "ALTER TABLE comments ADD COLUMN IF NOT EXISTS audio_url TEXT",
   "CREATE INDEX IF NOT EXISTS idx_ideas_parent ON ideas(parent_idea_id)",
+  "ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS author_phone TEXT",
+  "ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS ai_media INTEGER NOT NULL DEFAULT 0",
 ];
 
 async function init(pool: Pool) {

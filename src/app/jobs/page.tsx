@@ -3,7 +3,14 @@ import { listJobOffers } from "@/lib/jobOffers";
 import { getSession } from "@/lib/session";
 import { getProfile } from "@/lib/profile";
 import { ensureMatches, type MatchMap } from "@/lib/matching";
-import { resolveApplyChannels, shortUrl, formatOfferBody, whatsappLink } from "@/lib/applyChannels";
+import {
+  resolveApplyChannels,
+  shortUrl,
+  formatOfferBody,
+  whatsappLink,
+  jidToPhone,
+  isPrivateApply,
+} from "@/lib/applyChannels";
 
 export const dynamic = "force-dynamic";
 // Le matching (1 appel Djossi) peut prendre quelques secondes.
@@ -16,9 +23,58 @@ function matchColor(score: number): string {
   return "bg-surface-2 text-ink-2";
 }
 
-export default async function JobsPage() {
-  const [offers, user] = await Promise.all([listJobOffers(50), getSession()]);
+type Filters = { q?: string; contrat?: string; tag?: string };
+
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function hrefWith(base: Filters, patch: Partial<Filters>): string {
+  const p = new URLSearchParams();
+  const merged = { ...base, ...patch };
+  if (merged.q) p.set("q", merged.q);
+  if (merged.contrat) p.set("contrat", merged.contrat);
+  if (merged.tag) p.set("tag", merged.tag);
+  const s = p.toString();
+  return s ? `/jobs?${s}` : "/jobs";
+}
+
+export default async function JobsPage({ searchParams }: { searchParams: Promise<Filters> }) {
+  const f = await searchParams;
+  const q = (f.q ?? "").trim();
+  const contrat = (f.contrat ?? "").trim();
+  const tag = (f.tag ?? "").trim();
+  const base: Filters = { ...(q ? { q } : {}), ...(contrat ? { contrat } : {}), ...(tag ? { tag } : {}) };
+  const filtering = Boolean(q || contrat || tag);
+
+  const [offers, user] = await Promise.all([listJobOffers(100), getSession()]);
   const analyzed = offers.filter((o) => o.aiStatus === "done" && o.ai?.isJobOffer);
+
+  const nq = norm(q);
+  const results = analyzed.filter((o) => {
+    if (contrat && (o.ai?.contractType ?? "") !== contrat) return false;
+    if (tag && !(o.ai?.skills ?? []).some((s) => norm(s) === norm(tag))) return false;
+    if (nq) {
+      const hay = norm(
+        [o.ai?.title, o.ai?.summary, o.ai?.company, o.ai?.location, o.ai?.contractType, ...(o.ai?.skills ?? [])]
+          .filter(Boolean)
+          .join(" "),
+      );
+      if (!hay.includes(nq)) return false;
+    }
+    return true;
+  });
+
+  // Facette contrats (sur tout le corpus, pas seulement les résultats).
+  const contratCounts = new Map<string, number>();
+  for (const o of analyzed) {
+    const c = o.ai?.contractType;
+    if (c) contratCounts.set(c, (contratCounts.get(c) ?? 0) + 1);
+  }
+  const contrats = [...contratCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   // Matchs persos : seulement si connecté avec un profil rempli.
   let matches: MatchMap = new Map();
@@ -66,6 +122,51 @@ export default async function JobsPage() {
         </div>
       </div>
 
+      <form method="get" action="/jobs" role="search" className="flex gap-2">
+        {contrat ? <input type="hidden" name="contrat" value={contrat} /> : null}
+        {tag ? <input type="hidden" name="tag" value={tag} /> : null}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Chercher : chauffeur, serveuse, Cocody…"
+          aria-label="Chercher une offre"
+          className="input"
+        />
+        <button type="submit" className="btn btn-ink shrink-0">
+          Chercher
+        </button>
+      </form>
+
+      {contrats.length > 0 && (
+        <div className="flex flex-wrap gap-2" aria-label="Filtrer par contrat">
+          <Link href={hrefWith(base, { contrat: undefined })} className={`chip ${!contrat ? "chip-active" : ""}`}>
+            Tout
+          </Link>
+          {contrats.map(([c, n]) => (
+            <Link
+              key={c}
+              href={hrefWith(base, { contrat: c === contrat ? undefined : c })}
+              aria-pressed={c === contrat}
+              className={`chip tabular-nums ${c === contrat ? "chip-active" : ""}`}
+            >
+              {c} · {n}
+            </Link>
+          ))}
+        </div>
+      )}
+      {filtering && (
+        <p className="text-sm text-ink-2">
+          {results.length} résultat{results.length > 1 ? "s" : ""}
+          {q ? ` pour « ${q} »` : ""}
+          {contrat ? ` · ${contrat}` : ""}
+          {tag ? ` · ${tag}` : ""} —{" "}
+          <Link href="/jobs" className="font-semibold underline underline-offset-4">
+            tout effacer
+          </Link>
+        </p>
+      )}
+
       {analyzed.length === 0 ? (
         <div className="card px-6 py-14 text-center">
           <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl border-[1.5px] border-line-2 bg-surface-2 text-3xl" aria-hidden>
@@ -76,12 +177,29 @@ export default async function JobsPage() {
             Djossi vérifie de nouvelles offres en continu. Repasse un peu plus tard.
           </p>
         </div>
+      ) : results.length === 0 ? (
+        <div className="card px-6 py-14 text-center">
+          <h2 className="font-display text-xl font-bold">Rien trouvé avec ces filtres</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
+            Essaie un autre mot, ou reviens voir toutes les offres.
+          </p>
+          <Link href="/jobs" className="btn btn-sun mt-5">
+            Tout voir
+          </Link>
+        </div>
       ) : (
         <ul className="space-y-3">
-          {analyzed.map((o) => {
+          {results.map((o) => {
             const match = matches.get(o.id);
             const apply = resolveApplyChannels(o.body, o.ai);
             const hasApply = apply.emails.length > 0 || apply.phones.length > 0 || apply.urls.length > 0;
+            // Offre "en privé" : le numéro de l'auteur, résolu par Djossi.
+            const authorPhone = o.authorPhone ?? jidToPhone(o.author);
+            const privateWanted =
+              !hasApply &&
+              isPrivateApply(
+                [o.ai?.howToApply ?? "", o.ai?.contact ?? "", o.body.slice(0, 1000)].join("\n"),
+              );
             return (
             <li key={o.id} className="card p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
@@ -163,6 +281,20 @@ export default async function JobsPage() {
                     </a>
                   ))}
                 </div>
+              ) : authorPhone && privateWanted ? (
+                <div className="mt-3">
+                  <a
+                    href={whatsappLink(authorPhone, o.ai?.title)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-sun px-4 py-2 text-sm"
+                  >
+                    💬 Écrire en privé · {authorPhone}
+                  </a>
+                  <p className="mt-1.5 text-xs text-ink-3">
+                    Numéro retrouvé par Djossi : présente-toi et précise le poste.
+                  </p>
+                </div>
               ) : (
                 o.ai?.contact && (
                   <p className="mt-2 text-sm">
@@ -173,11 +305,20 @@ export default async function JobsPage() {
               )}
               {o.ai?.skills && o.ai.skills.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {o.ai.skills.map((s) => (
-                    <span key={s} className="chip">
-                      {s}
-                    </span>
-                  ))}
+                  {o.ai.skills.map((s) => {
+                    const active = norm(s) === norm(tag);
+                    return (
+                      <Link
+                        key={s}
+                        href={hrefWith(base, { tag: active ? undefined : s })}
+                        aria-pressed={active}
+                        title="Filtrer par ce mot-clé"
+                        className={`chip ${active ? "chip-active" : ""}`}
+                      >
+                        {s}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
               <details className="mt-3 text-sm text-ink-2">

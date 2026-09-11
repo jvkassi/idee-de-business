@@ -142,6 +142,79 @@ export function whatsappLink(phoneE164: string, jobTitle?: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
+/**
+ * Numéro E.164 déduit d'un JID WhatsApp d'auteur.
+ * - "2250707070707@c.us" → "+225707070707"
+ * - "2250707070707@s.whatsapp.net" → "+225707070707"
+ * - "88759978705003@lid" → null (identifiant opaque, pas de téléphone)
+ * - "120363406705817551@g.us" → null (groupe, jamais une personne)
+ * - null / "" → null
+ */
+export function jidToPhone(jid: string | null | undefined): string | null {
+  if (!jid) return null;
+  const trimmed = jid.trim();
+  if (!trimmed) return null;
+  const at = trimmed.lastIndexOf("@");
+  let local = trimmed;
+  if (at >= 0) {
+    const server = trimmed.slice(at + 1).trim().toLowerCase();
+    if (server === "lid" || server === "g.us") return null;
+    local = trimmed.slice(0, at).trim();
+  }
+  if (!local) return null;
+  return normalizePhone(local);
+}
+
+function stripAccentsLower(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * True si le texte demande à contacter l'auteur en privé.
+ * Pur : ne regarde que la formulation (pas les téléphones / mails / URLs,
+ * c'est l'appelant qui priorise les canaux explicites).
+ */
+export function isPrivateApply(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  const n = stripAccentsLower(text);
+  if (/\bpv\b/.test(n)) return true;
+  if (/\bp\s*\.\s*v\b/.test(n)) return true;
+  if (/\binbox\b/.test(n)) return true;
+  if (/\ben\s+privee?s?\b/.test(n)) return true;
+  if (/\bmessages?\s+privee?s?\b/.test(n)) return true;
+  if (/\bmp\b/.test(n)) return true;
+  if (/\bdm\b/.test(n)) return true;
+  if (/\bi\s*\.\s*b\b/.test(n)) return true;
+  if (/\bib\b/.test(n)) {
+    if (
+      /\b(me|moi|inbox)\b.{0,20}\bib\b/.test(n) ||
+      /\bib\b.{0,20}\b(me|moi|inbox)\b/.test(n)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Lien wa.me vers l'auteur via son JID, ou null si pas de téléphone. */
+export function authorWaLink(
+  author: string | null | undefined,
+  jobTitle?: string,
+): string | null {
+  const phone = jidToPhone(author);
+  return phone ? whatsappLink(phone, jobTitle) : null;
+}
+
+/** Version lisible du téléphone auteur (E.164), ou null. */
+export function authorDisplayPhone(
+  author: string | null | undefined,
+): string | null {
+  return jidToPhone(author);
+}
+
 export type AiApplyHints = {
   contact?: string | null;
   emails?: string[] | null;

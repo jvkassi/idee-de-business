@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMessageThreads } from "./jobOffers";
+import { buildMessageThreads, resolveAuthorPhone } from "./jobOffers";
 import type { WahaMessage } from "./waha";
 
 function msg(partial: Partial<WahaMessage> & { id: string }): WahaMessage {
@@ -32,5 +32,38 @@ describe("buildMessageThreads", () => {
       msg({ id: "3", body: "Suite tardive du premier auteur bien plus tard", timestamp: 1000 + 3600, participant: "a" }),
     ]);
     expect(threads).toHaveLength(3);
+  });
+
+  it("suit les pièces jointes dans le thread", () => {
+    const threads = buildMessageThreads([
+      msg({ id: "1", body: "Recrutement, voir flyer.", timestamp: 1000, participant: "a@x" }),
+      msg({
+        id: "2",
+        body: "",
+        timestamp: 1030,
+        participant: "a@x",
+        hasMedia: true,
+        mediaUrl: "http://waha:3000/api/files/S/flyer.jpeg",
+        mediaMime: "image/jpeg",
+      }),
+    ]);
+    expect(threads).toHaveLength(1);
+    expect(threads[0].media).toEqual([{ url: "http://waha:3000/api/files/S/flyer.jpeg", mime: "image/jpeg" }]);
+  });
+});
+
+describe("resolveAuthorPhone", () => {
+  const lidMap = new Map([["88759978705003@lid", "2250707070707@c.us"]]);
+
+  it("direct pour @c.us, via table pour @lid", () => {
+    expect(resolveAuthorPhone("2250707070707@c.us")).toBe("+225707070707");
+    expect(resolveAuthorPhone("88759978705003@lid", lidMap)).toBe("+225707070707");
+  });
+
+  it("null si inconnu ou groupe", () => {
+    expect(resolveAuthorPhone("99999999999999@lid", lidMap)).toBeNull();
+    expect(resolveAuthorPhone("99999999999999@lid")).toBeNull();
+    expect(resolveAuthorPhone("120363406705817551@g.us", lidMap)).toBeNull();
+    expect(resolveAuthorPhone(null, lidMap)).toBeNull();
   });
 });

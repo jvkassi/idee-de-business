@@ -10,7 +10,58 @@ export type WahaMessage = {
   participant?: string;
   fromMe: boolean;
   hasMedia: boolean;
+  mediaUrl?: string;
+  mediaMime?: string;
 };
+
+export type MediaAttachment = { mimeType: string; base64: string; bytes: number };
+
+/** L'IA lit ces pièces jointes (flyers, PDF d'offres). Le reste est ignoré. */
+const MEDIA_ALLOW = [/^image\/(jpeg|png|webp|gif)$/, /^application\/pdf$/];
+const MAX_MEDIA_BYTES = 7 * 1024 * 1024;
+export const MAX_ATTACHMENTS = 3;
+
+export function isAnalyzableMedia(mime: string | undefined, bytes: number): boolean {
+  if (!mime || bytes <= 0 || bytes > MAX_MEDIA_BYTES) return false;
+  return MEDIA_ALLOW.some((re) => re.test(mime));
+}
+
+/**
+ * WAHA rend des URL internes (http://waha:3000/...) : on les réécrit vers
+ * l'hôte public, qui expose aussi /api/files.
+ */
+export function rewriteMediaUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const publicBase = new URL(baseUrl());
+    const u = new URL(url);
+    u.protocol = publicBase.protocol;
+    u.host = publicBase.host;
+    u.port = publicBase.port;
+    return u.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+/** Télécharge une pièce jointe (image/PDF, 7 Mo max). Best-effort : null sinon. */
+export async function downloadMediaFile(rawUrl: string): Promise<MediaAttachment | null> {
+  try {
+    const url = rewriteMediaUrl(rawUrl);
+    if (!url) return null;
+    const res = await fetch(url, {
+      headers: { "x-api-key": apiKey() },
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!res.ok) return null;
+    const mimeType = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!isAnalyzableMedia(mimeType, buf.length)) return null;
+    return { mimeType, base64: buf.toString("base64"), bytes: buf.length };
+  } catch {
+    return null;
+  }
+}
 
 export type WahaChat = {
   id: string;
@@ -83,8 +134,37 @@ export async function resolveGroupChatId(groupName: string, fallbackId: string):
   return fallbackId;
 }
 
-/** Derniers messages d'un groupe, sans télécharger les médias (body + métadonnées). */
-export async function getGroupMessages(chatId: string, limit = 30): Promise<WahaMessage[]> {
+/**
+ * Table LID → numéro (WAHA Plus) : les participants des groupes arrivent en
+ * `@lid` opaque, cette route rend leur vrai numéro pour les offres "PV".
+ * Best-effort : liste vide si la route est indisponible.
+ */
+export async function getLidToPhoneMap(limit = 2000): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const raw = await wahaFetch<Array<{ lid?: unknown; pn?: unknown }>>(
+      `/api/${session()}/lids?limit=${Math.max(1, Math.min(5000, limit))}`,
+    );
+    for (const e of raw) {
+      if (typeof e.lid === "string" && typeof e.pn === "string") {
+        map.set(e.lid.trim().toLowerCase(), e.pn.trim());
+      }
+    }
+  } catch {
+    // Pas bloquant : les offres PV resteront sans bouton direct.
+  }
+  return map;
+}
+
+/**
+ * Derniers messages d'un groupe. Avec downloadMedia=true, WAHA joint
+ * media.url (à télécharger via downloadMediaFile) pour les images/PDF.
+ */
+export async function getGroupMessages(
+  chatId: string,
+  limit = 30,
+  downloadMedia = false,
+): Promise<WahaMessage[]> {
   const safeLimit = Math.max(1, Math.min(50, limit));
   const raw = await wahaFetch<
     Array<{
@@ -95,15 +175,23 @@ export async function getGroupMessages(chatId: string, limit = 30): Promise<Waha
       participant?: unknown;
       fromMe?: unknown;
       hasMedia?: unknown;
+      media?: unknown;
     }>
-  >(`/api/${session()}/chats/${encodeURIComponent(chatId)}/messages?limit=${safeLimit}&downloadMedia=false`);
-  return raw.map((m) => ({
-    id: typeof m.id === "string" ? m.id : String(m.id ?? `${chatId}-${m.timestamp}`),
-    body: typeof m.body === "string" ? m.body : "",
-    timestamp: typeof m.timestamp === "number" ? m.timestamp : 0,
-    from: typeof m.from === "string" ? m.from : "",
-    participant: typeof m.participant === "string" ? m.participant : undefined,
-    fromMe: m.fromMe === true,
-    hasMedia: m.hasMedia === true,
-  }));
+  >(
+    `/api/${session()}/chats/${encodeURIComponent(chatId)}/messages?limit=${safeLimit}&downloadMedia=${downloadMedia ? "true" : "false"}`,
+  );
+  return raw.map((m) => {
+    const media = (m.media ?? {}) as { url?: unknown; mimetype?: unknown };
+    return {
+      id: typeof m.id === "string" ? m.id : String(m.id ?? `${chatId}-${m.timestamp}`),
+      body: typeof m.body === "string" ? m.body : "",
+      timestamp: typeof m.timestamp === "number" ? m.timestamp : 0,
+      from: typeof m.from === "string" ? m.from : "",
+      participant: typeof m.participant === "string" ? m.participant : undefined,
+      fromMe: m.fromMe === true,
+      hasMedia: m.hasMedia === true,
+      mediaUrl: typeof media.url === "string" ? media.url : undefined,
+      mediaMime: typeof media.mimetype === "string" ? media.mimetype : undefined,
+    };
+  });
 }
