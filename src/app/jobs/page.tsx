@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { listJobOffers } from "@/lib/jobOffers";
-import { syncJobsAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
 import { getProfile } from "@/lib/profile";
 import { ensureMatches, type MatchMap } from "@/lib/matching";
-import { formatDateTime, timeAgo } from "@/lib/format";
-import { resolveApplyChannels, shortUrl, threadPartCount, whatsappLink } from "@/lib/applyChannels";
+import { resolveApplyChannels, shortUrl, formatOfferBody, whatsappLink } from "@/lib/applyChannels";
 
 export const dynamic = "force-dynamic";
-// Le matching (1 appel Gemini) peut prendre quelques secondes.
+// Le matching (1 appel Djossi) peut prendre quelques secondes.
 export const maxDuration = 60;
-export const metadata = { title: "Offres d'emploi WhatsApp" };
+export const metadata = { title: "Offres d'emploi" };
 
 function matchColor(score: number): string {
   if (score >= 75) return "bg-ok-soft text-ok";
@@ -48,14 +46,13 @@ export default async function JobsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="label">WhatsApp → Gemini</p>
+          <p className="label">Djossi · Emploi</p>
           <h1 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            Offres d&apos;emploi des groupes
+            Offres d&apos;emploi
           </h1>
           <p className="mt-1 text-sm text-ink-2">
-            Opportunités emploi et services VH AGM · Emploi-Business-Vente — {analyzed.length} offre
-            {analyzed.length > 1 ? "s" : ""} détectée{analyzed.length > 1 ? "s" : ""} par l&apos;IA
-            sur {offers.length} messages.
+            {analyzed.length} offre{analyzed.length > 1 ? "s" : ""} vérifiée{analyzed.length > 1 ? "s" : ""} par
+            Djossi, mises à jour automatiquement.
           </p>
           {user && !hasProfile && (
             <p className="mt-2 text-sm">
@@ -67,49 +64,29 @@ export default async function JobsPage() {
             </p>
           )}
         </div>
-        <form action={syncJobsAction}>
-          <button type="submit" className="btn btn-sun px-4 py-2 text-sm">
-            Synchroniser maintenant
-          </button>
-        </form>
       </div>
 
       {analyzed.length === 0 ? (
         <div className="card px-6 py-14 text-center">
-          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-surface-2 text-3xl" aria-hidden>
+          <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-xl border-[1.5px] border-line-2 bg-surface-2 text-3xl" aria-hidden>
             💼
           </div>
-          <h2 className="font-display text-xl font-bold">Aucune offre détectée pour l&apos;instant</h2>
+          <h2 className="font-display text-xl font-bold">Aucune offre pour l&apos;instant</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-2">
-            Lance une synchronisation pour récupérer les derniers messages WhatsApp et les faire analyser par
-            Gemini. Assure-toi que <code>WAHA_API_KEY</code> est définie sur Vercel.
+            Djossi vérifie de nouvelles offres en continu. Repasse un peu plus tard.
           </p>
-          <form action={syncJobsAction} className="mt-5">
-            <button type="submit" className="btn btn-sun">
-              Lancer la synchro
-            </button>
-          </form>
         </div>
       ) : (
         <ul className="space-y-3">
           {analyzed.map((o) => {
             const match = matches.get(o.id);
             const apply = resolveApplyChannels(o.body, o.ai);
-            const parts = threadPartCount(o.body);
             const hasApply = apply.emails.length > 0 || apply.phones.length > 0 || apply.urls.length > 0;
             return (
             <li key={o.id} className="card p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
-                <span className="rounded-full bg-surface-2 px-2 py-0.5 font-semibold text-ink-2">
-                  {o.sourceGroup}
-                </span>
                 {o.ai?.contractType && (
                   <span className="rounded-full bg-sun-soft px-2 py-0.5 font-medium">{o.ai.contractType}</span>
-                )}
-                {parts > 1 && (
-                  <span className="rounded-full border border-line-2 bg-surface-2 px-2 py-0.5 font-mono font-bold tabular-nums" title="Offre reçue en plusieurs messages WhatsApp recollés">
-                    🧩 {parts} messages
-                  </span>
                 )}
                 {match ? (
                   <span
@@ -120,7 +97,12 @@ export default async function JobsPage() {
                   </span>
                 ) : (
                   o.aiScore !== null && (
-                    <span className="ml-auto font-mono font-bold tabular-nums text-ink">IA {o.aiScore}/100</span>
+                    <span
+                      className="ml-auto font-mono font-bold tabular-nums text-ink"
+                      title="Score de qualité Djossi"
+                    >
+                      ★ {o.aiScore}/100
+                    </span>
                   )
                 )}
               </div>
@@ -200,12 +182,10 @@ export default async function JobsPage() {
               )}
               <details className="mt-3 text-sm text-ink-2">
                 <summary className="cursor-pointer text-xs font-medium text-ink-3 hover:text-ink">
-                  Voir le message d&apos;origine
+                  Voir l&apos;annonce d&apos;origine
                 </summary>
-                <p className="mt-1 whitespace-pre-wrap border-l-[3px] border-line-2 pl-3">{o.body}</p>
-                <p className="mt-1 text-xs text-ink-3" title={o.postedAt ? formatDateTime(o.postedAt) : undefined}>
-                  {o.postedAt ? timeAgo(o.postedAt) : "date inconnue"}
-                  {o.author ? ` · ${o.author}` : ""}
+                <p className="mt-1 whitespace-pre-wrap border-l-[3px] border-line-2 pl-3">
+                  {formatOfferBody(o.body)}
                 </p>
               </details>
             </li>

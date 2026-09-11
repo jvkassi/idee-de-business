@@ -178,3 +178,11 @@ export function threadPartCount(body: string): number {
   if (!body.includes(THREAD_SEPARATOR.trim())) return 1;
   return body.split(THREAD_SEPARATOR).length;
 }
+
+/**
+ * Texte d'annonce prêt à afficher : la couture interne des morceaux
+ * recollés devient une simple ellipse, rien ne trahit l'assemblage.
+ */
+export function formatOfferBody(body: string): string {
+  return body.split(THREAD_SEPARATOR).join("\n\n…\n\n").trim();
+}
