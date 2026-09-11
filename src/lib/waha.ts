@@ -139,13 +139,13 @@ export async function resolveGroupChatId(groupName: string, fallbackId: string):
  * `@lid` opaque, cette route rend leur vrai numéro pour les offres "PV".
  * Best-effort : liste vide si la route est indisponible.
  */
-export async function getLidToPhoneMap(limit = 5000): Promise<Map<string, string>> {
+export async function getLidToPhoneMap(limit = 10000): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   try {
     // Pagnie jusqu'à épuisement : un auteur PV hors première page = bouton perdu.
     const pageSize = 1000;
     let offset = 0;
-    for (let page = 0; page < 10; page++) {
+    for (let page = 0; page < 12; page++) {
       const raw = await wahaFetch<Array<{ lid?: unknown; pn?: unknown }>>(
         `/api/${session()}/lids?limit=${pageSize}&offset=${offset}`,
       );
