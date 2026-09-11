@@ -5,6 +5,7 @@ import {
   extractApplyChannels,
   isPrivateApply,
   jidToPhone,
+  jobLinkFromBody,
   mergeChannels,
   normalizePhone,
   threadPartCount,
@@ -47,6 +48,16 @@ describe("applyChannels", () => {
   it("compte les morceaux recollés", () => {
     expect(threadPartCount("hello")).toBe(1);
     expect(threadPartCount(`part1${THREAD_SEPARATOR}part2`)).toBe(2);
+  });
+
+  it("reconnaît les liens d'offres seuls", () => {
+    expect(jobLinkFromBody("https://lnkd.in/abc123")?.label).toBe("LinkedIn");
+    expect(jobLinkFromBody("www.sociumjob.com/offre/1")?.label).toBe("Socium Job");
+    expect(jobLinkFromBody("https://recrutyx.com")?.label).toBe("Recrutyx");
+    expect(jobLinkFromBody("https://forms.gle/abc123")).toBeNull();
+    expect(jobLinkFromBody("https://wa.me/2250707070707")).toBeNull();
+    expect(jobLinkFromBody("Super offre https://lnkd.in/x")).toBeNull();
+    expect(jobLinkFromBody("")).toBeNull();
   });
 
   describe("jidToPhone", () => {

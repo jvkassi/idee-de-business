@@ -483,7 +483,7 @@ export async function analyzeJobMessage(
 ): Promise<JobOfferAnalysis> {
   const files =
     attachments.length > 0
-      ? `\n${attachments.length} pièce(s) jointe(s) (image/PDF) accompagnent ce texte : lis-les comme partie intégrante de l'annonce. Les flyers contiennent souvent l'essentiel (postes, contact, lieu) même quand le texte est vide. Un sticker, mème ou photo sans rapport avec un emploi n'est PAS une offre.`
+      ? `\n${attachments.length} pièce(s) jointe(s) accompagnent ce texte : lis-les comme partie intégrante de l'annonce. Images et PDF (flyers) contiennent souvent l'essentiel (postes, contact, lieu) même quand le texte est vide. Un message vocal transcrit une annonce parlée : traite sa transcription comme le texte de l'annonce. Un sticker, mème, photo ou vocal sans rapport avec un emploi n'est PAS une offre.`
       : "";
   const prompt = `Tu es Djossi, qui trie des annonces d'emploi ivoiriennes.
 Annonce à analyser (peut regrouper plusieurs messages successifs du même auteur) :

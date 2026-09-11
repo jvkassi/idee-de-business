@@ -198,6 +198,7 @@ const MIGRATIONS = [
   "CREATE INDEX IF NOT EXISTS idx_ideas_parent ON ideas(parent_idea_id)",
   "ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS author_phone TEXT",
   "ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS ai_media INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE wa_raw_messages ADD COLUMN IF NOT EXISTS raw_media_url TEXT",
   "CREATE TABLE IF NOT EXISTS wa_raw_messages (wa_message_id TEXT PRIMARY KEY, group_chat_id TEXT NOT NULL, author TEXT, body TEXT NOT NULL DEFAULT '', posted_at TIMESTAMPTZ, has_media BOOLEAN NOT NULL DEFAULT false, media_mime TEXT, ingested_at TIMESTAMPTZ NOT NULL DEFAULT now())",
 ];
 

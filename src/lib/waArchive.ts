@@ -161,10 +161,19 @@ export async function storeRawMessages(groupChatId: string, messages: WahaMessag
     const author = m.participant ?? m.from ?? null;
     const ts = typeof m.timestamp === "number" && m.timestamp > 0 ? m.timestamp : null;
     const rows = await query<{ wa_message_id: string }>(
-      `INSERT INTO wa_raw_messages (wa_message_id, group_chat_id, author, body, posted_at, has_media, media_mime)
-       VALUES ($1, $2, $3, $4, to_timestamp($5), $6, $7)
+      `INSERT INTO wa_raw_messages (wa_message_id, group_chat_id, author, body, posted_at, has_media, media_mime, raw_media_url)
+       VALUES ($1, $2, $3, $4, to_timestamp($5), $6, $7, $8)
        ON CONFLICT (wa_message_id) DO NOTHING RETURNING wa_message_id`,
-      [m.id, groupChatId, author || null, m.body ?? "", ts, m.hasMedia === true, m.mediaMime ?? null],
+      [
+        m.id,
+        groupChatId,
+        author || null,
+        m.body ?? "",
+        ts,
+        m.hasMedia === true,
+        m.mediaMime ?? null,
+        m.mediaUrl ?? null,
+      ],
     );
     inserted += rows.length;
   }

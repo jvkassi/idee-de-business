@@ -26,9 +26,14 @@ describe("isAnalyzableMedia", () => {
     expect(isAnalyzableMedia("application/pdf", 2_000_000)).toBe(true);
   });
 
+  it("accepte les vocaux, refuse la vidéo", () => {
+    expect(isAnalyzableMedia("audio/ogg", 200_000)).toBe(true);
+    expect(isAnalyzableMedia("audio/mpeg", 500_000)).toBe(true);
+    expect(isAnalyzableMedia("video/mp4", 50_000)).toBe(false);
+  });
+
   it("refuse le reste", () => {
     expect(isAnalyzableMedia("audio/ogg;codecs=opus", 50_000)).toBe(false);
-    expect(isAnalyzableMedia("video/mp4", 50_000)).toBe(false);
     expect(isAnalyzableMedia("image/jpeg", 0)).toBe(false);
     expect(isAnalyzableMedia("image/jpeg", 8 * 1024 * 1024)).toBe(false);
     expect(isAnalyzableMedia(undefined, 1000)).toBe(false);

@@ -126,9 +126,6 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             </p>
           )}
         </div>
-        <Link href="/publier" className="btn btn-outline shrink-0 px-4 py-2 text-sm">
-          Tu recrutes ? Publie une offre
-        </Link>
       </div>
 
       <form method="get" action="/jobs" role="search" className="flex gap-2">

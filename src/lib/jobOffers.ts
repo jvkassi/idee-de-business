@@ -6,12 +6,13 @@ import {
   downloadMediaFile,
   getGroupMessages,
   getLidToPhoneMap,
+  guessMediaUrl,
   resolveGroupChatId,
   type MediaAttachment,
   type WahaMessage,
 } from "./waha";
 import { analyzeJobMessage, type JobOfferAnalysis } from "./gemini";
-import { THREAD_SEPARATOR, jidToPhone, normalizePhone } from "./applyChannels";
+import { THREAD_SEPARATOR, jidToPhone, jobLinkFromBody, normalizePhone } from "./applyChannels";
 
 /** Une offre est souvent fractionnée : même auteur, messages rapprochés. */
 export const THREAD_GAP_SEC = 15 * 60;
@@ -312,6 +313,35 @@ async function analyzeAndStoreThread(
     return "exists";
   }
 
+  // Message réduit à un lien d'offre connu (LinkedIn & co) : pas besoin de
+  // l'IA, rien à inventer — l'annonce se lit en cliquant.
+  const jobLink = jobLinkFromBody(body);
+  if (jobLink && attachments.length === 0) {
+    const linkAi = {
+      isJobOffer: true,
+      title: `Offre ${jobLink.label}`,
+      company: null,
+      location: null,
+      contractType: null,
+      salary: null,
+      contact: null,
+      emails: [],
+      phones: [],
+      urls: [jobLink.url],
+      howToApply: "Postule via le lien.",
+      summary: `Annonce publiée via ${jobLink.label} : voir le détail en cliquant.`,
+      skills: [],
+      score: 50,
+    };
+    const linked = await query<{ id: number }>(
+      `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, author_phone, body, posted_at, ai_status, ai_json, ai_score, ai_media)
+       VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7), 'done', $8, 50, 0)
+       ON CONFLICT (wa_message_id) DO NOTHING RETURNING id`,
+      [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, JSON.stringify(linkAi)],
+    );
+    return linked.length > 0 ? "created" : "exists";
+  }
+
   if (!isAnalyzable({ body, mediaCount: attachments.length })) {
     await query(
       `INSERT INTO job_offers (source_group, group_chat_id, wa_message_id, author, author_phone, body, posted_at, ai_status, ai_media)
@@ -405,6 +435,86 @@ export async function backfillAuthorPhones(lidMap?: Map<string, string> | null):
     }
   }
   return fixed;
+}
+
+export type ReprocessResult = {
+  processed: number;
+  created: number;
+  skipped: number;
+  nextOffset: number;
+  done: boolean;
+};
+
+type RawRow = {
+  wa_message_id: string;
+  group_chat_id: string;
+  author: string | null;
+  body: string;
+  posted_at: string | null;
+  has_media: boolean;
+  media_mime: string | null;
+  raw_media_url: string | null;
+};
+
+/**
+ * Rejoue l'archive brute dans le pipeline complet (threads, médias, IA,
+ * numéro auteur). Par lots chronologiques, idempotent : relancer ne
+ * duplique rien (conflit sur wa_message_id).
+ */
+export async function reprocessArchive(
+  limit = 8,
+  offset = 0,
+  lidMap?: Map<string, string> | null,
+): Promise<ReprocessResult> {
+  await ready();
+  const safeLimit = Math.max(1, Math.min(25, limit));
+  const safeOffset = Math.max(0, offset);
+  const rows = await query<RawRow>(
+    `SELECT wa_message_id, group_chat_id, author, body, posted_at, has_media, media_mime, raw_media_url
+     FROM wa_raw_messages ORDER BY posted_at ASC NULLS LAST LIMIT $1 OFFSET $2`,
+    [safeLimit, safeOffset],
+  );
+  if (rows.length === 0) {
+    return { processed: 0, created: 0, skipped: 0, nextOffset: safeOffset, done: true };
+  }
+  const map = lidMap ?? (await getLidToPhoneMap());
+  const groupName = (chatId: string): string =>
+    JOB_SOURCE_GROUPS.find((g) => g.chatId === chatId)?.name ?? "Archives";
+
+  let created = 0;
+  let skipped = 0;
+  // Threads par groupe pour recoller les annonces fractionnées.
+  const byGroup = new Map<string, WahaMessage[]>();
+  for (const r of rows) {
+    const mediaUrl = r.raw_media_url || guessMediaUrl(r.wa_message_id, r.media_mime) || undefined;
+    const list = byGroup.get(r.group_chat_id) ?? [];
+    list.push({
+      id: r.wa_message_id,
+      body: r.body ?? "",
+      timestamp: r.posted_at ? Math.floor(new Date(String(r.posted_at)).getTime() / 1000) : 0,
+      from: "",
+      participant: r.author ?? undefined,
+      fromMe: false,
+      hasMedia: r.has_media === true,
+      mediaUrl,
+      mediaMime: r.media_mime ?? undefined,
+    });
+    byGroup.set(r.group_chat_id, list);
+  }
+  for (const [chatId, messages] of byGroup) {
+    for (const t of buildMessageThreads(messages)) {
+      const res = await analyzeAndStoreThread(groupName(chatId), chatId, t.thread, t.partIds, map, t.media);
+      if (res === "created") created += 1;
+      else skipped += 1;
+    }
+  }
+  return {
+    processed: rows.length,
+    created,
+    skipped,
+    nextOffset: safeOffset + rows.length,
+    done: rows.length < safeLimit,
+  };
 }
 
 /** Planifie une synchro en arrière-plan (webhook WAHA). */

@@ -243,6 +243,35 @@ export function shortUrl(url: string): string {
   return s.length > 42 ? `${s.slice(0, 42)}…` : s;
 }
 
+/** Domaines d'offres : un message réduit à un de ces liens reste une offre. */
+const JOB_LINK_HOSTS: Array<{ host: string; label: string }> = [
+  { host: "lnkd.in", label: "LinkedIn" },
+  { host: "linkedin.com", label: "LinkedIn" },
+  { host: "sociumjob.com", label: "Socium Job" },
+  { host: "recrutyx.com", label: "Recrutyx" },
+  { host: "portail.odc.ci", label: "Orange Digital Center" },
+];
+
+/**
+ * Si le corps n'est qu'un lien d'offre connu, rend {url, label}.
+ * Rien d'inventé : l'annonce se lit en cliquant.
+ */
+export function jobLinkFromBody(body: string): { url: string; label: string } | null {
+  const text = body.trim();
+  if (!text || /\s/.test(text)) return null;
+  let clean = text.replace(/[.,;:!?)\]]+$/, "");
+  if (/^www\./i.test(clean)) clean = `https://${clean}`;
+  if (!/^https?:\/\//i.test(clean)) return null;
+  let host = "";
+  try {
+    host = new URL(clean).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  const found = JOB_LINK_HOSTS.find((h) => host === h.host || host.endsWith(`.${h.host}`));
+  return found ? { url: clean.slice(0, 500), label: found.label } : null;
+}
+
 /** Séparateur inséré quand on recolle des messages fractionnés. */
 export const THREAD_SEPARATOR = "\n\n— suite du message —\n\n";
 

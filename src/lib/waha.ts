@@ -16,8 +16,8 @@ export type WahaMessage = {
 
 export type MediaAttachment = { mimeType: string; base64: string; bytes: number };
 
-/** L'IA lit ces pièces jointes (flyers, PDF d'offres). Le reste est ignoré. */
-const MEDIA_ALLOW = [/^image\/(jpeg|png|webp|gif)$/, /^application\/pdf$/];
+/** L'IA lit ces pièces jointes (flyers, PDF et vocaux d'offres). Le reste est ignoré. */
+const MEDIA_ALLOW = [/^image\/(jpeg|png|webp|gif)$/, /^application\/pdf$/, /^audio\/(ogg|mpeg|mp4|x-m4a)$/];
 const MAX_MEDIA_BYTES = 7 * 1024 * 1024;
 export const MAX_ATTACHMENTS = 3;
 
@@ -44,7 +44,29 @@ export function rewriteMediaUrl(url: string | undefined): string | undefined {
   }
 }
 
-/** Télécharge une pièce jointe (image/PDF, 7 Mo max). Best-effort : null sinon. */
+const MEDIA_EXT: Array<[RegExp, string]> = [
+  [/^image\/jpeg$/, "jpeg"],
+  [/^image\/png$/, "png"],
+  [/^image\/webp$/, "webp"],
+  [/^image\/gif$/, "gif"],
+  [/^application\/pdf$/, "pdf"],
+  [/^audio\/ogg$/, "ogg"],
+  [/^audio\/mpeg$/, "mp3"],
+  [/^audio\/mp4$/, "m4a"],
+];
+
+/**
+ * Reconstruit l'URL /api/files d'un message archivé (l'archive brute ne
+ * garde pas toujours l'URL). Best-effort : 404 possible si expiré.
+ */
+export function guessMediaUrl(waMessageId: string, mime?: string | null): string | undefined {
+  if (!waMessageId || !mime) return undefined;
+  const ext = MEDIA_EXT.find(([re]) => re.test(mime.toLowerCase()))?.[1];
+  if (!ext) return undefined;
+  return `${baseUrl()}/api/files/${session()}/${waMessageId}.${ext}`;
+}
+
+/** Télécharge une pièce jointe (image/PDF/vocal, 7 Mo max). Best-effort : null sinon. */
 export async function downloadMediaFile(rawUrl: string): Promise<MediaAttachment | null> {
   try {
     const url = rewriteMediaUrl(rawUrl);
