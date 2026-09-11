@@ -43,7 +43,7 @@ export default function NewIdeaForm({ categories }: { categories: Category[] }) 
   if (mode === "voice") {
     return (
       <div className="space-y-4">
-        <VoiceRecorder onRecorded={handleRecorded} busyLabel="L'IA transcrit ton idée…" />
+        <VoiceRecorder onRecorded={handleRecorded} busyLabel="Djossi t'écoute et écrit…" />
         <div className="flex items-center justify-center gap-3 text-xs text-ink-3">
           <span>Tu préfères écrire ?</span>
           <button type="button" onClick={() => setMode("manual")} className="btn btn-outline px-3 py-2 text-xs">

@@ -9,7 +9,7 @@ import { AiTag } from "@/components/AiBadge";
 export const metadata: Metadata = {
   title: "Questions fréquentes",
   description:
-    "Mon idée est-elle protégée ? Que veut dire la note IA ? Qu'y a-t-il dans le dossier de démarrage ? Est-ce gratuit ? Les réponses, sans détour.",
+    "Mon idée est-elle protégée ? Que veut dire la note Djossi ? Qu'y a-t-il dans le dossier de démarrage ? Est-ce gratuit ? Les réponses, sans détour.",
 };
 
 type Faq = { q: string; a: ReactNode; plain: string };
@@ -88,11 +88,11 @@ const GROUPS: Group[] = [
   },
   {
     id: "note",
-    label: "La note IA",
+    label: "La note Djossi",
     title: "Que veut vraiment dire ce chiffre sur 100 ?",
     items: [
       {
-        q: "La note IA, c'est une validation de marché ?",
+        q: "La note Djossi, c'est une validation de marché ?",
         plain:
           "Non. C'est l'estimation d'un modèle de langage (Gemini) sur la qualité de ta présentation : est-ce clair, cohérent, complet ? Y a-t-il une cible, un problème, une façon de gagner de l'argent ? Elle ne sait pas si des gens paieront. Personne ne le sait avant d'avoir essayé. Une note élevée veut dire « bien expliqué », pas « bonne affaire ».",
         a: (
@@ -265,7 +265,7 @@ export default async function FaqPage() {
           Les questions qu&apos;on nous pose. <span className="hl">Les réponses sans détour.</span>
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink-2">
-          Idées de Business est gratuit, public et propulsé par une IA qui peut se tromper. Voilà ce que ça
+          Djossi est gratuit et public. Derrière, une IA lit et range tout ce qui passe — elle peut se tromper, la communauté tranche. Voilà ce que ça
           implique, concrètement.
         </p>
         <nav aria-label="Sections" className="mt-6 flex flex-wrap gap-2">

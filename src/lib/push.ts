@@ -6,7 +6,7 @@ const privateKey = process.env.VAPID_PRIVATE_KEY;
 const configured = Boolean(publicKey && privateKey);
 
 if (configured) {
-  webpush.setVapidDetails("mailto:contact@idee-de-business.app", publicKey!, privateKey!);
+  webpush.setVapidDetails("mailto:contact@djossi.app", publicKey!, privateKey!);
 }
 
 export type PushSubscriptionInput = {

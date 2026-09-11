@@ -45,7 +45,7 @@ export default function VoiceRecorder({
   minSeconds = 30,
   prompts = DEFAULT_PROMPTS,
   idleTitle = "Raconte ton idée à voix haute",
-  idleHint = "Le problème, ta solution, pour qui, comment ça rapporte. Minimum 30 secondes — sois verbeux, plus tu donnes de détails, meilleure sera l'analyse.",
+  idleHint = "Le problème, ta solution, pour qui, comment ça rapporte. Minimum 30 secondes — sois verbeux, plus tu donnes de détails, mieux Djossi te comprend.",
   busyLabel = "Transcription en cours…",
   onRecorded,
   onCancel,

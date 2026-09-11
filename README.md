@@ -1,8 +1,9 @@
-# Idées de Business
+# Djossi
 
-Plateforme communautaire où chacun peut proposer une idée de business, la
-communauté vote et commente, et une IA (Google Gemini) l'améliore et
-l'illustre automatiquement.
+Djossi, c'est ton pote à Abidjan pour les idées de business : tu racontes
+ton idée à voix haute, la communauté vote et réagit, et Djossi la range,
+la note et l'illustre. Les offres d'emploi vérifiées sont là aussi.
+Gratuit, en français.
 
 ## Stack
 

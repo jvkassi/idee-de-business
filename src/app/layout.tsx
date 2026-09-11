@@ -30,26 +30,26 @@ const spaceMono = Space_Mono({
   display: "swap",
 });
 
-const SITE_URL = "https://idee-de-business.vercel.app";
+const SITE_URL = "https://www.djossi.app";
 const DESCRIPTION =
-  "Partage ton idée de business, la communauté vote et commente, l'IA la structure, la note et l'illustre automatiquement.";
+  "Djossi : partage ton idée de business, la communauté vote, et trouve un vrai travail parmi les offres vérifiées chaque jour. Gratuit, en français.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "Idées de Business", template: "%s · Idées de Business" },
+  title: { default: "Djossi", template: "%s · Djossi" },
   description: DESCRIPTION,
   openGraph: {
-    title: "Idées de Business",
+    title: "Djossi",
     description: DESCRIPTION,
     url: SITE_URL,
-    siteName: "Idées de Business",
+    siteName: "Djossi",
     locale: "fr_FR",
     type: "website",
-    images: [{ url: "/og-cover.jpg", width: 1376, height: 768, alt: "Idées de Business" }],
+    images: [{ url: "/og-cover.jpg", width: 1376, height: 768, alt: "Djossi" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Idées de Business",
+    title: "Djossi",
     description: DESCRIPTION,
     images: ["/og-cover.jpg"],
   },
@@ -65,8 +65,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="border-t border-line py-8">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 text-xs text-ink-3 sm:flex-row sm:items-center sm:justify-between">
             <p>
-              <span className="font-display font-bold text-ink-2">Idées de Business</span> — une idée brute, une
-              fiche, un vote. Fiches et illustrations générées par Gemini. La communauté a le dernier mot.
+              <span className="font-display font-bold text-ink-2">Djossi</span> — une idée brute, une
+              fiche, un vote, un vrai travail. Fait avec soin à Abidjan.
             </p>
             <nav aria-label="Pied de page" className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {[

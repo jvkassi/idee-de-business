@@ -39,7 +39,7 @@ export default function CommentForm({ ideaId, pseudo }: { ideaId: number; pseudo
             minSeconds={0}
             compact
             idleTitle="Enregistrer ma réaction"
-            busyLabel="Transcription du commentaire…"
+            busyLabel="Djossi écoute ta réaction…"
             onRecorded={handleVoiceComment}
             onCancel={() => setVoiceMode(false)}
           />

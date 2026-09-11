@@ -38,7 +38,7 @@ export default async function IdeaSitePage({ params }: { params: Params }) {
   return (
     <div style={categoryStyle(idea.categorySlug)}>
       <div className="rounded-2xl border border-dashed border-line bg-surface-2 px-4 py-2.5 text-center text-xs text-ink-3">
-        Page de démonstration générée par l&apos;IA à partir d&apos;une idée publiée sur Idées de Business — rien
+        Page de démonstration préparée par Djossi à partir d&apos;une idée publiée ici — rien
         n&apos;est enregistré ici. <Link href={`/ideas/${idea.id}`} className="font-medium text-ink underline underline-offset-4">Retour à la fiche</Link>
       </div>
 

@@ -13,8 +13,8 @@ export const maxDuration = 60;
 
 const STEPS = [
   { who: "toi", title: "Tu la racontes à voix haute", text: "30 secondes minimum, sois verbeux. Tu peux aussi l'écrire si tu préfères." },
-  { who: "ia", title: "La machine la structure", text: "Cible, valeur, revenus, risques, premiers pas et une note sur 100. ~20 s." },
-  { who: "ia", title: "Elle reçoit son illustration", text: "Dessinée à partir de ton texte. ~30 s." },
+  { who: "ia", title: "Djossi la range et la note", text: "Cible, valeur, revenus, risques, premiers pas et une note sur 100. ~20 s." },
+  { who: "ia", title: "Djossi lui dessine son image", text: "Dessinée à partir de ton texte. ~30 s." },
   { who: "eux", title: "La communauté tranche", text: "Votes et réactions : c'est là que ça se valide (ou pas)." },
 ];
 
@@ -62,9 +62,8 @@ export default async function NewIdeaPage() {
         <p className="px-1 text-xs leading-relaxed text-ink-3">
           Une bonne description dit <span className="font-medium text-ink-2">pour qui</span>,{" "}
           <span className="font-medium text-ink-2">quel problème</span> et{" "}
-          <span className="font-medium text-ink-2">comment ça rapporte</span>. La machine note mieux ce
-          qu&apos;elle comprend bien — et une note moyenne n&apos;est pas un verdict, c&apos;est un point de départ
-          pour la discussion.
+          <span className="font-medium text-ink-2">comment ça rapporte</span>. Djossi comprend mieux quand
+          c&apos;est concret — et une note moyenne, c&apos;est juste un point de départ pour discuter.
         </p>
       </aside>
     </div>

@@ -136,7 +136,7 @@ export default function ValidationGate({ idea, isOwner }: { idea: IdeaDetail; is
 
         {improvementTips.length > 0 && (
           <div>
-            <p className="label mb-2">Ce que l&apos;IA n&apos;a pas trouvé dans ta description</p>
+            <p className="label mb-2">Ce que Djossi n&apos;a pas bien compris</p>
             <DashList items={improvementTips} />
           </div>
         )}
@@ -146,8 +146,8 @@ export default function ValidationGate({ idea, isOwner }: { idea: IdeaDetail; is
             <VoiceRecorder
               minSeconds={10}
               idleTitle="Réponds à ces points à voix haute"
-              idleHint="10 secondes minimum. L'IA fusionne ta précision avec la description existante et recalcule la note."
-              busyLabel="L'IA retravaille ta fiche…"
+              idleHint="10 secondes minimum. Djossi mélange ta précision avec ta description et recalcule ta note."
+              busyLabel="Djossi retravaille ta fiche…"
               onRecorded={handleRefine}
             />
           </div>
@@ -209,7 +209,7 @@ export default function ValidationGate({ idea, isOwner }: { idea: IdeaDetail; is
             La génération n&apos;a pas abouti
           </h3>
           <p className="mt-1.5 text-sm text-ink-2">
-            Ça arrive quand le modèle est saturé. Rien n&apos;est perdu : ta fiche et ta note restent acquises.
+            Djossi a calé, ça arrive. Rien n&apos;est perdu : ta fiche et ta note restent acquises.
             {isOwner ? " Relance quand tu veux, ça prend jusqu'à 3 minutes." : ` Seul @${idea.authorPseudo} peut relancer.`}
           </p>
         </div>

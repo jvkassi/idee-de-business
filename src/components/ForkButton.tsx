@@ -42,7 +42,7 @@ export default function ForkButton({ ideaId, forkCount }: { ideaId: number; fork
           minSeconds={15}
           prompts={PROMPTS}
           idleTitle="Explique ta version, à voix haute"
-          idleHint="Dis comment TU ferais cette idée. Quinze secondes minimum — l'IA note et illustre ta propre fiche."
+          idleHint="Dis comment TU ferais cette idée. Quinze secondes minimum — Djossi note et illustre ta propre fiche."
           busyLabel="Création de ta version…"
           onRecorded={handleRecorded}
           onCancel={() => setOpen(false)}

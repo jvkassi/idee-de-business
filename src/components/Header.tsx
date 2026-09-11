@@ -20,13 +20,11 @@ export default function Header({ user }: { user: SessionUser | null }) {
           <Link
             href={user ? "/ideas" : "/"}
             className="-mx-1 flex shrink-0 items-center gap-2.5 rounded-lg p-1"
-            aria-label="Idées de Business — accueil"
+            aria-label="Djossi — accueil"
           >
             <Logo className="h-8 w-8" />
-            {/* Sous 420 px, le mot ne tient pas à côté du lien "Explorer" et des
-                deux boutons de droite : la marque se réduit à son sigle. */}
             <span className="hidden font-display text-lg font-bold tracking-tight min-[26.25rem]:inline">
-              Idées<span className="hidden md:inline"> de Business</span>
+              Djossi
             </span>
           </Link>
 

@@ -13,7 +13,7 @@ import IdeaCard from "@/components/IdeaCard";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "Idées de Business — le GitHub des idées de business, en Côte d'Ivoire" },
+  title: { absolute: "Djossi — idées de business et offres d'emploi en Côte d'Ivoire" },
   description:
     "Raconte ton idée à voix haute en 30 secondes. L'IA la structure et la note sur 100, la communauté vote et réagit, et au-dessus de 70/100 tu débloques ton dossier de démarrage : landing page, architecture, flyer. Gratuit.",
 };
@@ -250,7 +250,7 @@ export default async function LandingPage() {
         <div>
           <p className="label flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-sun ring-1 ring-ink" aria-hidden />
-            Le GitHub des idées de business · Côte d&apos;Ivoire
+            Djossi · idées & petits boulots · Côte d&apos;Ivoire
           </p>
           <h1 className="mt-4 font-display text-[2.6rem] font-bold leading-[1] tracking-tight sm:text-6xl lg:text-[4.25rem]">
             Ton idée mérite mieux qu&apos;une note dans ton téléphone.{" "}

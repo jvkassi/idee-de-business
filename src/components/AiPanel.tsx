@@ -56,14 +56,14 @@ export default function AiPanel({ idea }: { idea: IdeaDetail }) {
           <AiTag />
           Fiche générée
         </h2>
-        <span className="text-xs text-ink-3">Gemini · estimation automatique</span>
+        <span className="text-xs text-ink-3">Djossi · avis automatique</span>
       </div>
 
       <div className="px-4 py-5 sm:px-6">
         {idea.aiStatus === "pending" && (
           <div className="grid gap-6 sm:grid-cols-[240px_1fr]" aria-live="polite">
             <div>
-              <p className="font-display text-lg font-bold leading-snug">La machine lit ton idée.</p>
+              <p className="font-display text-lg font-bold leading-snug">Djossi lit ton idée.</p>
               <p className="mt-1 text-sm text-ink-2">
                 Une vingtaine de secondes. La page se met à jour toute seule.
               </p>
@@ -102,7 +102,7 @@ export default function AiPanel({ idea }: { idea: IdeaDetail }) {
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-semibold text-bad">L&apos;analyse n&apos;a pas abouti.</p>
               <p className="mt-0.5 text-ink-2">
-                Ça arrive quand le modèle est saturé. Relance-la, ça prend ~20 secondes.
+                Ça arrive, Djossi est un peu saturé là. Relance, ça prend ~20 secondes.
               </p>
               {idea.aiError && (
                 <p className="mt-1 truncate font-mono text-[11px] text-ink-3" title={idea.aiError}>

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Toutes les idées",
   description:
-    "Le fil des idées de business publiées par la communauté : notées par l'IA, soutenues par les votes, prêtes à être discutées ou reprises à sa façon.",
+    "Le fil Djossi : les idées des gens d'ici, notées par Djossi, poussées par vos votes. Lis, réagis, fais ta version à ta façon.",
 };
 
 type SearchParams = { cat?: string; q?: string; sort?: string };

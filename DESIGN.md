@@ -1,4 +1,4 @@
-# DESIGN.md - Idées de Business
+# DESIGN.md - Djossi
 
 ## Context (from discovery)
 
