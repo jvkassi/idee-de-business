@@ -44,6 +44,12 @@ function hrefWith(base: Filters, patch: Partial<Filters>): string {
   return s ? `/jobs?${s}` : "/jobs";
 }
 
+/** Fraîcheur perçue : badge "Nouveau" sous 72 h, rien ne se périme en base. */
+function isFresh(o: { postedAt: string | null; createdAt: string }): boolean {
+  const t = new Date(o.postedAt ?? o.createdAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < 72 * 3600 * 1000;
+}
+
 export default async function JobsPage({ searchParams }: { searchParams: Promise<Filters> }) {
   const f = await searchParams;
   const q = (f.q ?? "").trim();
@@ -209,6 +215,11 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             return (
             <li key={o.id} className="card p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
+                {isFresh(o) && (
+                  <span className="rounded-full border border-ink bg-sun px-2 py-0.5 font-mono font-bold uppercase tracking-wide text-ink">
+                    Nouveau
+                  </span>
+                )}
                 {o.ai?.contractType && (
                   <Link
                     href={hrefWith(base, { contrat: o.ai.contractType === contrat ? undefined : o.ai.contractType })}

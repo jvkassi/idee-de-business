@@ -190,18 +190,27 @@ function directToJobOffer(r: Record<string, unknown>): JobOffer {
   };
 }
 
+/** Fenêtre glissante d'affichage : seules les offres fraîches sortent, tout reste en base. */
+export const OFFER_TTL_DAYS = 30;
+/** Badge "Nouveau" : publié dans les dernières 72 h. */
+export const OFFER_NEW_DAYS = 3;
+
 export async function listJobOffers(limit = 50): Promise<JobOffer[]> {
   await ready();
   const rows = await query(
-    `SELECT * FROM job_offers ORDER BY COALESCE(posted_at, created_at) DESC LIMIT $1`,
-    [limit],
+    `SELECT * FROM job_offers
+     WHERE COALESCE(posted_at, created_at) > now() - make_interval(days => $2)
+     ORDER BY COALESCE(posted_at, created_at) DESC LIMIT $1`,
+    [limit, OFFER_TTL_DAYS],
   );
   const offers = rows.map((r) => toJobOffer(r as Record<string, unknown>));
   // Offres déposées directement (relues par Djossi) : elles vivent avec les autres.
   try {
     const direct = await query(
-      `SELECT * FROM direct_offers WHERE status = 'published' ORDER BY created_at DESC LIMIT $1`,
-      [limit],
+      `SELECT * FROM direct_offers
+       WHERE status = 'published' AND created_at > now() - make_interval(days => $2)
+       ORDER BY created_at DESC LIMIT $1`,
+      [limit, OFFER_TTL_DAYS],
     );
     for (const r of direct) offers.push(directToJobOffer(r as Record<string, unknown>));
   } catch {
