@@ -11,10 +11,12 @@ import { useState } from "react";
 export default function CoverImage({
   src,
   title,
+  alt,
   className = "",
 }: {
   src: string;
   title: string;
+  alt?: string;
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
@@ -23,7 +25,7 @@ export default function CoverImage({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
-      alt={`Illustration : ${title}`}
+      alt={alt ?? `Illustration : ${title}`}
       className={className}
       loading="lazy"
       decoding="async"

@@ -9,7 +9,7 @@ import PushBell from "@/components/PushBell";
 // Pas de `display` ici : chaque lien pose le sien (le lien FAQ est masqué sur
 // mobile, et `hidden` perdrait face à un `inline-flex` partagé).
 const NAV_LINK =
-  "items-center rounded-lg px-2 py-2 text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink sm:px-2.5";
+  "items-center rounded-lg px-2 py-2 text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink sm:px-2.5 pointer-coarse:min-h-11";
 
 export default function Header({ user }: { user: SessionUser | null }) {
   return (

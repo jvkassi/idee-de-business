@@ -78,7 +78,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <Link
                   key={href}
                   href={href}
-                  className="inline-flex items-center py-2.5 text-ink-2 underline-offset-4 hover:text-ink hover:underline"
+                  className="inline-flex items-center py-2.5 text-ink-2 underline-offset-4 hover:text-ink hover:underline pointer-coarse:min-h-11"
                 >
                   {label}
                 </Link>

@@ -8,6 +8,7 @@ import { KIT_SCORE_THRESHOLD } from "@/lib/constants";
 import { refineIdeaVoiceAction, retryKitAction, validateKitAction } from "@/app/actions";
 import VoiceRecorder from "@/components/VoiceRecorder";
 import KitProgress from "@/components/KitProgress";
+import CoverImage from "@/components/CoverImage";
 
 function ValidateButton({ ideaId }: { ideaId: number }) {
   const router = useRouter();
@@ -246,19 +247,17 @@ export default function ValidationGate({ idea, isOwner }: { idea: IdeaDetail; is
           {idea.kitFlyerImage && (
             <div>
               <p className="label mb-2">Flyer</p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <CoverImage
                 src={idea.kitFlyerImage}
+                title={idea.title}
                 alt="Flyer généré pour l'idée"
-                loading="lazy"
-                decoding="async"
                 className="mat w-full rounded-xl border border-line"
               />
               <a
                 href={idea.kitFlyerImage}
                 target="_blank"
                 rel="noopener"
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink underline-offset-4 hover:underline"
+                className="-mx-1 mt-1 inline-flex items-center gap-1.5 px-1 py-2.5 text-sm font-medium text-ink underline-offset-4 hover:underline pointer-coarse:min-h-11"
               >
                 Ouvrir en grand pour l&apos;enregistrer ou le partager
               </a>
