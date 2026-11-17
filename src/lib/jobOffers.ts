@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { query, ready } from "./db";
+import { cached, invalidate, TAGS, TTL } from "./cache";
 import {
   JOB_SOURCE_GROUPS,
   MAX_ATTACHMENTS,
@@ -195,7 +196,10 @@ export const OFFER_TTL_DAYS = 30;
 /** Badge "Nouveau" : publié dans les dernières 72 h. */
 export const OFFER_NEW_DAYS = 3;
 
-export async function listJobOffers(limit = 50): Promise<JobOffer[]> {
+/** Offres affichées : identiques pour tous, servies depuis le cache (invalidé à chaque écriture). */
+export const listJobOffers = cached("jobs:list", fetchJobOffers, { tags: [TAGS.jobs], revalidate: TTL.medium });
+
+async function fetchJobOffers(limit = 50): Promise<JobOffer[]> {
   await ready();
   const rows = await query(
     `SELECT * FROM job_offers
@@ -248,18 +252,21 @@ async function runAnalysis(
         attachments.length,
         rowId,
       ]);
+      invalidate(TAGS.jobs);
       return "skipped";
     }
     await query(
       "UPDATE job_offers SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_media = $3, ai_error = NULL WHERE id = $4",
       [JSON.stringify(analysis), analysis.score, attachments.length, rowId],
     );
+    invalidate(TAGS.jobs);
     return "created";
   } catch (err) {
     await query("UPDATE job_offers SET ai_status = 'failed', ai_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       rowId,
     ]);
+    invalidate(TAGS.jobs);
     return "created";
   }
 }
@@ -310,6 +317,7 @@ async function analyzeAndStoreThread(
         "UPDATE job_offers SET body = $1, author_phone = COALESCE(author_phone, $2), ai_status = 'pending', ai_error = NULL WHERE id = $3",
         [body, authorPhone, mainId],
       );
+      invalidate(TAGS.jobs);
       return runAnalysis(mainId, body, attachments);
     }
     // Même sans nouveau texte, on complète le numéro manquant (résolution LID).
@@ -318,6 +326,7 @@ async function analyzeAndStoreThread(
         authorPhone,
         mainId,
       ]);
+      invalidate(TAGS.jobs);
     }
     return "exists";
   }
@@ -348,6 +357,7 @@ async function analyzeAndStoreThread(
        ON CONFLICT (wa_message_id) DO NOTHING RETURNING id`,
       [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, JSON.stringify(linkAi)],
     );
+    invalidate(TAGS.jobs);
     return linked.length > 0 ? "created" : "exists";
   }
 
@@ -358,6 +368,7 @@ async function analyzeAndStoreThread(
        ON CONFLICT (wa_message_id) DO NOTHING`,
       [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, attachments.length],
     );
+    invalidate(TAGS.jobs);
     return "skipped";
   }
 
@@ -367,6 +378,7 @@ async function analyzeAndStoreThread(
      ON CONFLICT (wa_message_id) DO NOTHING RETURNING id`,
     [groupName, chatId, m.id, author, authorPhone, body, m.timestamp || null, attachments.length],
   );
+  invalidate(TAGS.jobs);
   if (inserted.length === 0) return "exists";
   return runAnalysis(Number(inserted[0].id), body, attachments);
 }
@@ -440,6 +452,7 @@ export async function backfillAuthorPhones(lidMap?: Map<string, string> | null):
     const phone = resolveAuthorPhone(r.author, map);
     if (phone) {
       await query("UPDATE job_offers SET author_phone = $1 WHERE id = $2", [phone, Number(r.id)]);
+      invalidate(TAGS.jobs);
       fixed += 1;
     }
   }
@@ -576,6 +589,7 @@ export async function ingestWahaWebhookMessage(payload: {
           "UPDATE job_offers SET body = $1, ai_status = 'pending', ai_error = NULL WHERE id = $2",
           [merged, rowId],
         );
+        invalidate(TAGS.jobs);
         if (isAnalyzable({ body: merged })) await runAnalysis(rowId, merged);
         return { handled: true, reason: "suite recollée" };
       }

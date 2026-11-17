@@ -4,6 +4,7 @@ import { query, ready } from "./db";
 import { KIT_SCORE_THRESHOLD } from "./constants";
 import { notifyUser } from "./push";
 import { checkIpRateLimit } from "./rateLimit";
+import { cached, invalidate, TAGS, TTL } from "./cache";
 import {
   improveIdea,
   embedText,
@@ -67,7 +68,9 @@ export type Comment = {
   audioUrl: string | null;
 };
 
-export async function getCategories(): Promise<Category[]> {
+export const getCategories = cached("categories", fetchCategories, { tags: [TAGS.categories], revalidate: TTL.long });
+
+async function fetchCategories(): Promise<Category[]> {
   await ready();
   // Ordre d'insertion (celui du seed) : "Autre" reste en dernier.
   const rows = await query<{ id: number; slug: string; name: string; emoji: string }>(
@@ -199,6 +202,12 @@ export async function listIdeas(opts: {
     }
   }
 
+  if (!opts.search) {
+    // Liste identique pour tous : servie depuis le cache, puis on pose les votes du visiteur.
+    const items = await listIdeasPublic(opts.categorySlug ?? "", opts.sort ?? "recent");
+    return withViewerVotes(items, opts.viewerId);
+  }
+
   const conds: string[] = [];
   const args: (string | number)[] = [viewerId];
   if (opts.categorySlug) {
@@ -221,12 +230,66 @@ export async function listIdeas(opts: {
   return rows.map((r) => rowToListItem(r as Record<string, unknown>));
 }
 
+const listIdeasPublic = cached(
+  "ideas:list",
+  async (categorySlug: string, sort: SortOrder): Promise<IdeaListItem[]> => {
+    await ready();
+    const args: (string | number)[] = [-1];
+    let where = "";
+    if (categorySlug) {
+      args.push(categorySlug);
+      where = `WHERE c.slug = $${args.length}`;
+    }
+    const order =
+      sort === "top"
+        ? "ORDER BY votes DESC, i.created_at DESC"
+        : sort === "score"
+          ? "ORDER BY (i.ai_score IS NULL), i.ai_score DESC, i.created_at DESC"
+          : "ORDER BY i.created_at DESC";
+    const rows = await query(`${LIST_SELECT} ${where} ${order} LIMIT 100`, args);
+    return rows.map((r) => rowToListItem(r as Record<string, unknown>));
+  },
+  { tags: [TAGS.ideas], revalidate: TTL.short },
+);
+
+/** Ids des idées soutenues par ce visiteur (une petite liste, mise en cache par utilisateur). */
+const votedIdeaIds = cached(
+  "votes:user",
+  async (userId: number): Promise<number[]> => {
+    await ready();
+    const rows = await query<{ idea_id: number }>("SELECT idea_id FROM votes WHERE user_id = $1", [userId]);
+    return rows.map((r) => Number(r.idea_id));
+  },
+  { tags: (userId) => [TAGS.votesOf(userId)], revalidate: TTL.long },
+);
+
+async function withViewerVotes<T extends IdeaListItem>(items: T[], viewerId?: number): Promise<T[]> {
+  if (!viewerId || viewerId < 0 || items.length === 0) return items;
+  const voted = new Set(await votedIdeaIds(viewerId));
+  return items.map((i) => ({ ...i, voted: voted.has(i.id) }));
+}
+
+/** Une idée dont l'IA tourne encore change d'une seconde à l'autre : on la lit en direct. */
+function isInFlight(i: IdeaListItem): boolean {
+  return i.aiStatus === "pending" || i.coverStatus === "pending" || i.kitStatus === "pending";
+}
+
+/** Invalide tout ce qui affiche cette idée (fiche + listes + compteurs). */
+function touchIdea(id: number) {
+  invalidate(TAGS.ideas, TAGS.idea(id));
+}
+
 /**
  * Les idées à mettre en avant sur la page d'accueil : analysées, de
  * préférence illustrées, les plus soutenues d'abord. Preuve sociale réelle,
  * pas des exemples inventés.
  */
-export async function listFeaturedIdeas(limit = 3): Promise<IdeaListItem[]> {
+export const listFeaturedIdeas = cached("ideas:featured", fetchFeaturedIdeas, {
+  tags: [TAGS.ideas],
+  revalidate: TTL.medium,
+});
+
+async function fetchFeaturedIdeas(limit = 3): Promise<IdeaListItem[]> {
   await ready();
   const rows = await query(
     `${LIST_SELECT}
@@ -251,7 +314,9 @@ export type SiteStats = {
 };
 
 /** Compteurs globaux affichés sur la page d'accueil (une seule requête). */
-export async function getSiteStats(): Promise<SiteStats> {
+export const getSiteStats = cached("ideas:stats", fetchSiteStats, { tags: [TAGS.ideas], revalidate: TTL.medium });
+
+async function fetchSiteStats(): Promise<SiteStats> {
   await ready();
   const rows = await query<Record<string, unknown>>(
     `SELECT
@@ -277,8 +342,23 @@ export async function getSiteStats(): Promise<SiteStats> {
 }
 
 export async function getIdea(id: number, viewerId?: number): Promise<IdeaDetail | null> {
+  let idea = await getIdeaCached(id);
+  // Traitement IA en cours : la page se rafraîchit toutes les 3 s, on lit en
+  // direct pour ne jamais rester bloqué sur un état "en cours" périmé.
+  if (idea && isInFlight(idea)) idea = await fetchIdea(id);
+  if (!idea) return null;
+  const [withVote] = await withViewerVotes([idea], viewerId);
+  return withVote;
+}
+
+const getIdeaCached = cached("idea", (id: number) => fetchIdea(id), {
+  tags: (id) => [TAGS.idea(id)],
+  revalidate: TTL.medium,
+});
+
+async function fetchIdea(id: number): Promise<IdeaDetail | null> {
   await ready();
-  const rows = await query(`${LIST_SELECT} WHERE i.id = $2`, [viewerId ?? -1, id]);
+  const rows = await query(`${LIST_SELECT} WHERE i.id = $2`, [-1, id]);
   if (rows.length === 0) return null;
   const row = rows[0] as Record<string, unknown>;
 
@@ -305,7 +385,12 @@ export async function getIdea(id: number, viewerId?: number): Promise<IdeaDetail
   };
 }
 
-export async function getComments(ideaId: number): Promise<Comment[]> {
+export const getComments = cached("idea:comments", fetchComments, {
+  tags: (ideaId) => [TAGS.idea(ideaId)],
+  revalidate: TTL.medium,
+});
+
+async function fetchComments(ideaId: number): Promise<Comment[]> {
   await ready();
   const rows = await query(
     `SELECT cm.id, cm.body, cm.created_at, cm.audio_url, u.pseudo AS author_pseudo
@@ -330,6 +415,7 @@ export async function addComment(ideaId: number, authorId: number, body: string,
     body,
     audioUrl ?? null,
   ]);
+  touchIdea(ideaId);
   const rows = await query<{ author_id: number; title: string }>("SELECT author_id, title FROM ideas WHERE id = $1", [ideaId]);
   const idea = rows[0];
   if (idea && Number(idea.author_id) !== authorId) {
@@ -350,8 +436,12 @@ export async function toggleVote(ideaId: number, userId: number): Promise<boolea
     "DELETE FROM votes WHERE idea_id = $1 AND user_id = $2 RETURNING idea_id",
     [ideaId, userId],
   );
+  if (deleted.length === 0) {
+    await query("INSERT INTO votes (idea_id, user_id) VALUES ($1, $2)", [ideaId, userId]);
+  }
+  touchIdea(ideaId);
+  invalidate(TAGS.votesOf(userId));
   if (deleted.length > 0) return false;
-  await query("INSERT INTO votes (idea_id, user_id) VALUES ($1, $2)", [ideaId, userId]);
   const rows = await query<{ author_id: number; title: string }>("SELECT author_id, title FROM ideas WHERE id = $1", [ideaId]);
   const idea = rows[0];
   if (idea && Number(idea.author_id) !== userId) {
@@ -399,6 +489,7 @@ export async function createIdea(opts: {
     [opts.title, opts.pitch, categoryId, opts.authorId, opts.audioUrl ?? null, opts.parentIdeaId ?? null],
   );
   const id = Number(inserted[0].id);
+  touchIdea(id);
 
   // Amélioration IA + illustration en arrière-plan, sans bloquer la réponse.
   // `after` garantit que la fonction serverless reste vivante jusqu'à la fin
@@ -476,8 +567,13 @@ export async function deleteIdea(id: number, requesterId: number): Promise<{ ok:
     (u): u is string => Boolean(u),
   );
 
-  await query("UPDATE ideas SET parent_idea_id = NULL WHERE parent_idea_id = $1", [id]);
+  const orphans = await query<{ id: number }>(
+    "UPDATE ideas SET parent_idea_id = NULL WHERE parent_idea_id = $1 RETURNING id",
+    [id],
+  );
   await query("DELETE FROM ideas WHERE id = $1", [id]);
+  touchIdea(id);
+  for (const o of orphans) invalidate(TAGS.idea(Number(o.id)));
 
   if (blobUrls.length > 0) {
     // Best effort : la suppression de la fiche ne doit pas échouer si le
@@ -509,6 +605,7 @@ async function runAiImprovement(id: number, title: string, pitch: string, author
       "UPDATE ideas SET ai_status = 'done', ai_json = $1, ai_score = $2, ai_error = NULL WHERE id = $3",
       [JSON.stringify(improved), improved.score, id],
     );
+    touchIdea(id);
     after(() => updateIdeaEmbedding(id, title, pitch));
     if (improved.score >= KIT_SCORE_THRESHOLD) {
       after(() =>
@@ -525,6 +622,7 @@ async function runAiImprovement(id: number, title: string, pitch: string, author
       err instanceof Error ? err.message : String(err),
       id,
     ]);
+    touchIdea(id);
   }
 }
 
@@ -540,12 +638,14 @@ async function runCoverGeneration(id: number, title: string, pitch: string, cate
       "UPDATE ideas SET cover_status = 'done', cover_image = $1, cover_error = NULL WHERE id = $2",
       [blob.url, id],
     );
+    touchIdea(id);
   } catch (err) {
     console.error("[gemini:cover]", "idea", id, err);
     await query("UPDATE ideas SET cover_status = 'failed', cover_error = $1 WHERE id = $2", [
       err instanceof Error ? err.message : String(err),
       id,
     ]);
+    touchIdea(id);
   }
 }
 
@@ -562,6 +662,7 @@ export async function retryAiImprovement(id: number): Promise<void> {
   if (rows.length === 0) return;
   const { title, pitch, author_id } = rows[0];
   await query("UPDATE ideas SET ai_status = 'pending' WHERE id = $1", [id]);
+  touchIdea(id);
   after(() => runAiImprovement(id, String(title), String(pitch), Number(author_id)));
 }
 
@@ -575,6 +676,7 @@ export async function retryCoverGeneration(id: number): Promise<void> {
   if (rows.length === 0) return;
   const { title, pitch, category_name } = rows[0];
   await query("UPDATE ideas SET cover_status = 'pending' WHERE id = $1", [id]);
+  touchIdea(id);
   after(() => runCoverGeneration(id, String(title), String(pitch), String(category_name)));
 }
 
@@ -597,12 +699,14 @@ export async function refineIdeaWithVoice(id: number, transcript: string, audioU
     audioUrl,
     id,
   ]);
+  touchIdea(id);
   after(() => runAiImprovement(id, String(title), mergedPitch, Number(author_id)));
 }
 
 /** Marque un jalon réel franchi, sans écraser un échec/relance concurrent. */
 async function bumpKitStep(id: number) {
   await query("UPDATE ideas SET kit_step = kit_step + 1 WHERE id = $1 AND kit_status = 'pending'", [id]);
+  touchIdea(id);
 }
 
 async function runStarterKit(
@@ -637,6 +741,7 @@ async function runStarterKit(
       "UPDATE ideas SET kit_status = 'done', kit_json = $1, kit_flyer_image = $2, kit_error = NULL WHERE id = $3",
       [JSON.stringify(kit), blob.url, id],
     );
+    touchIdea(id);
     after(() =>
       notifyUser(authorId, {
         title: "Dossier prêt 🚀",
@@ -650,6 +755,7 @@ async function runStarterKit(
       err instanceof Error ? err.message : String(err),
       id,
     ]);
+    touchIdea(id);
     after(() =>
       notifyUser(authorId, {
         title: "Génération échouée",
@@ -684,6 +790,7 @@ export async function validateAndGenerateKit(id: number): Promise<{ ok: true } |
   if (!analysis) return { ok: false, error: "Analyse IA manquante." };
 
   await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0, kit_error = NULL WHERE id = $1", [id]);
+  touchIdea(id);
   after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis, Number(author_id)));
   return { ok: true };
 }
@@ -700,5 +807,6 @@ export async function retryStarterKit(id: number): Promise<void> {
   const analysis = parseAi(ai_json);
   if (!analysis) return;
   await query("UPDATE ideas SET kit_status = 'pending', kit_step = 0 WHERE id = $1", [id]);
+  touchIdea(id);
   after(() => runStarterKit(id, String(title), String(pitch), String(category_name), analysis, Number(author_id)));
 }
